@@ -7,7 +7,7 @@
  * synthetic price is never presented as a current verified price.
  */
 
-export const PRICE_TYPES = ["shelf", "online", "promotional", "manual", "synthetic"] as const;
+export const PRICE_TYPES = ["shelf", "online", "promotional", "manual"] as const;
 export type PriceType = (typeof PRICE_TYPES)[number];
 
 export const PRICE_TYPE_LABELS_DA: Record<PriceType, string> = {
@@ -15,7 +15,6 @@ export const PRICE_TYPE_LABELS_DA: Record<PriceType, string> = {
   online: "Onlinepris",
   promotional: "Tilbudspris",
   manual: "Indtastet af dig",
-  synthetic: "Syntetisk testpris",
 };
 
 export interface PriceObservation {
@@ -31,6 +30,8 @@ export interface PriceObservation {
   validTo?: string | null;
   sourceKey: string;
   confidence: "high" | "medium" | "low";
+  /** Development fixture; never a real-world price. */
+  isSynthetic: boolean;
 }
 
 /**
@@ -55,7 +56,6 @@ export const FRESHNESS_THRESHOLD_HOURS: Record<PriceType, number> = {
   online: 48,
   promotional: 24 * 7,
   manual: 24 * 30,
-  synthetic: Number.POSITIVE_INFINITY,
 };
 
 export function ageHours(observedAt: string, now: Date): number {
@@ -69,10 +69,8 @@ export function isWithinValidity(o: PriceObservation, now: Date): boolean {
 }
 
 export function priceStatus(o: PriceObservation, now: Date): PriceStatus {
-  if (o.priceType === "synthetic") return "synthetic";
-  if (o.priceType === "manual") {
-    return "estimated";
-  }
+  if (o.isSynthetic) return "synthetic";
+  if (o.priceType === "manual") return "estimated";
   if (ageHours(o.observedAt, now) > FRESHNESS_THRESHOLD_HOURS[o.priceType]) return "stale";
   return "live";
 }
@@ -105,7 +103,8 @@ export function effectivePrice(
       o.productId === productId &&
       o.retailerId === retailerId &&
       (o.storeId === null || o.storeId === storeId) &&
-      new Date(o.observedAt) <= now,
+      new Date(o.observedAt) <= now &&
+      isWithinValidity(o, now),
   );
   const sortFn = (a: PriceObservation, b: PriceObservation) =>
     STATUS_RANK[priceStatus(a, now)] - STATUS_RANK[priceStatus(b, now)] ||
@@ -114,7 +113,7 @@ export function effectivePrice(
 
   const regular = relevant.filter((o) => o.priceType !== "promotional").sort(sortFn)[0];
   const promo = relevant
-    .filter((o) => o.priceType === "promotional" && isWithinValidity(o, now))
+    .filter((o) => o.priceType === "promotional")
     .sort(sortFn)[0];
 
   if (promo && (!regular || promo.priceOre < regular.priceOre)) {

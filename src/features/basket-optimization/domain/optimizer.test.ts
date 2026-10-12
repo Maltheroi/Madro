@@ -21,6 +21,7 @@ const obs = (
   observedAt: "2026-10-12T06:00:00Z",
   sourceKey: "test",
   confidence: "high",
+  isSynthetic: false,
   ...extra,
 });
 
@@ -41,7 +42,7 @@ describe("price freshness", () => {
   it("classifies statuses", () => {
     expect(priceStatus(obs("a", "p", "r", 100), now)).toBe("live");
     expect(priceStatus(obs("a", "p", "r", 100, { observedAt: "2026-10-01T00:00:00Z" }), now)).toBe("stale");
-    expect(priceStatus(obs("a", "p", "r", 100, { priceType: "synthetic" }), now)).toBe("synthetic");
+    expect(priceStatus(obs("a", "p", "r", 100, { isSynthetic: true }), now)).toBe("synthetic");
     expect(priceStatus(obs("a", "p", "r", 100, { priceType: "manual" }), now)).toBe("estimated");
   });
 
@@ -167,7 +168,7 @@ describe("basket optimizer", () => {
 
   it("marks savings as unverified when synthetic prices are involved", () => {
     const input = baseInput();
-    input.observations = input.observations.map((o) => ({ ...o, priceType: "synthetic" as const }));
+    input.observations = input.observations.map((o) => ({ ...o, isSynthetic: true }));
     const res = optimizeBasket(input);
     expect(res.savings!.verified).toBe(false);
     expect(res.explanation.join(" ")).toContain("syntetiske");
