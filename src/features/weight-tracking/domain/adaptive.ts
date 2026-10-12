@@ -122,13 +122,21 @@ export function isCompleteLogDay(day: IntakeDay, targetKcal: number): boolean {
   );
 }
 
-export function goalDeltaKcal(goal: Goal, weeklyRatePercent: number | null, weightKg: number, tdee: number): number {
+export function goalDeltaKcal(
+  goal: Goal,
+  weeklyRatePercent: number | null,
+  weightKg: number,
+  tdee: number,
+): number {
   if (goal === "maintenance") return 0;
   if (goal === "recomposition") return -tdee * GUARDRAILS.recompositionDeficitFraction;
   const limits = RATE_LIMITS[goal];
   const rate = Math.min(limits.max, Math.max(limits.min, weeklyRatePercent ?? limits.default));
   const daily = ((rate / 100) * weightKg * KCAL_PER_KG_BODY_MASS) / 7;
-  const capped = goal === "fat_loss" ? Math.min(daily, tdee * GUARDRAILS.maxDeficitFraction) : Math.min(daily, tdee * GUARDRAILS.maxSurplusFraction);
+  const capped =
+    goal === "fat_loss"
+      ? Math.min(daily, tdee * GUARDRAILS.maxDeficitFraction)
+      : Math.min(daily, tdee * GUARDRAILS.maxSurplusFraction);
   return goal === "fat_loss" ? -capped : capped;
 }
 
@@ -175,13 +183,16 @@ export function recommendCalories(input: AdaptiveInput): AdaptiveRecommendation 
   const trend = smoothTrend(allDays);
   const windowTrend = trend.filter((p) => p.date >= windowStart && p.date <= windowEnd);
   const weighInDays = windowTrend.length;
-  const spanDays = weighInDays > 1 ? daysBetween(windowTrend[0].date, windowTrend[weighInDays - 1].date) : 0;
+  const spanDays =
+    weighInDays > 1 ? daysBetween(windowTrend[0].date, windowTrend[weighInDays - 1].date) : 0;
 
   const intakeWindow = input.intake.filter((d) => d.date >= windowStart && d.date <= windowEnd);
   const completeDays = intakeWindow.filter((d) => isCompleteLogDay(d, input.currentTargetKcal));
   // Measure log completeness over the span covered by weigh-ins, not before the user started.
-  const firstDataDate = [windowTrend[0]?.date, intakeWindow[0]?.date].filter(Boolean).sort()[0] ?? windowEnd;
-  const coveredDays = daysBetween(firstDataDate < windowStart ? windowStart : firstDataDate, windowEnd) + 1;
+  const firstDataDate =
+    [windowTrend[0]?.date, intakeWindow[0]?.date].filter(Boolean).sort()[0] ?? windowEnd;
+  const coveredDays =
+    daysBetween(firstDataDate < windowStart ? windowStart : firstDataDate, windowEnd) + 1;
   const completeShare = coveredDays > 0 ? completeDays.length / coveredDays : 0;
 
   const quality: DataQuality = {
@@ -202,9 +213,20 @@ export function recommendCalories(input: AdaptiveInput): AdaptiveRecommendation 
   );
   const kgPerWeek = regression ? regression.slopePerDay * 7 : null;
   const seKgPerWeek = regression?.slopeStdError != null ? regression.slopeStdError * 7 : null;
-  const plannedDelta = goalDeltaKcal(input.goal, input.weeklyRatePercent, input.currentWeightKg, input.priorTdeeKcal);
+  const plannedDelta = goalDeltaKcal(
+    input.goal,
+    input.weeklyRatePercent,
+    input.currentWeightKg,
+    input.priorTdeeKcal,
+  );
   const plannedKgPerWeek = (plannedDelta * 7) / KCAL_PER_KG_BODY_MASS;
-  const timeline = goalTimeline(input.currentWeightKg, input.goalWeightKg, kgPerWeek, seKgPerWeek, plannedKgPerWeek);
+  const timeline = goalTimeline(
+    input.currentWeightKg,
+    input.goalWeightKg,
+    kgPerWeek,
+    seKgPerWeek,
+    plannedKgPerWeek,
+  );
 
   const keep = (extra?: Partial<AdaptiveRecommendation>): AdaptiveRecommendation => ({
     algorithm: ADAPTIVE_ALGORITHM,
@@ -222,17 +244,26 @@ export function recommendCalories(input: AdaptiveInput): AdaptiveRecommendation 
     ...extra,
   });
 
-  if (input.lastRecommendationDate && daysBetween(input.lastRecommendationDate, input.today) < R.minDaysBetweenRecommendations) {
+  if (
+    input.lastRecommendationDate &&
+    daysBetween(input.lastRecommendationDate, input.today) < R.minDaysBetweenRecommendations
+  ) {
     keepReasons.push("too_soon");
-    explanation.push(`Sidste vurdering var for under ${R.minDaysBetweenRecommendations} dage siden. Vi venter, så ændringer kan nå at vise sig.`);
+    explanation.push(
+      `Sidste vurdering var for under ${R.minDaysBetweenRecommendations} dage siden. Vi venter, så ændringer kan nå at vise sig.`,
+    );
   }
   if (spanDays < R.minSpanDays) {
     keepReasons.push("insufficient_span");
-    explanation.push(`Vi har brug for vejninger over mindst ${R.minSpanDays} dage. Du har ${spanDays} dage.`);
+    explanation.push(
+      `Vi har brug for vejninger over mindst ${R.minSpanDays} dage. Du har ${spanDays} dage.`,
+    );
   }
   if (weighInDays < R.minWeighInDays) {
     keepReasons.push("insufficient_weigh_ins");
-    explanation.push(`Vi har brug for mindst ${R.minWeighInDays} dage med vejning i de seneste ${R.windowDays} dage. Du har ${weighInDays}.`);
+    explanation.push(
+      `Vi har brug for mindst ${R.minWeighInDays} dage med vejning i de seneste ${R.windowDays} dage. Du har ${weighInDays}.`,
+    );
   }
   if (completeShare < R.minCompleteLogShare) {
     keepReasons.push("incomplete_food_logs");
@@ -253,7 +284,10 @@ export function recommendCalories(input: AdaptiveInput): AdaptiveRecommendation 
     explanation.push(
       `Det beregnede forbrug (${Math.round(observedTdee)} kcal) afviger usandsynligt meget fra det tidligere estimat. Det skyldes oftest ufuldstændig registrering eller væskeudsving. Målet beholdes.`,
     );
-    return keep({ observedTdeeKcal: Math.round(observedTdee), averageIntakeKcal: Math.round(avgIntake) });
+    return keep({
+      observedTdeeKcal: Math.round(observedTdee),
+      averageIntakeKcal: Math.round(avgIntake),
+    });
   }
 
   const weight = Math.min(1, completeDays.length / R.fullConfidenceDays);
@@ -263,7 +297,10 @@ export function recommendCalories(input: AdaptiveInput): AdaptiveRecommendation 
   const floor = Math.max(GUARDRAILS.absoluteFloorKcal, input.bmrKcal);
   if (proposed < floor && input.goal !== "muscle_gain") proposed = Math.min(floor, blended);
   const rawChange = proposed - input.currentTargetKcal;
-  const change = Math.max(-R.maxChangePerAdjustmentKcal, Math.min(R.maxChangePerAdjustmentKcal, rawChange));
+  const change = Math.max(
+    -R.maxChangePerAdjustmentKcal,
+    Math.min(R.maxChangePerAdjustmentKcal, rawChange),
+  );
   const recommended = roundTargetKcal(input.currentTargetKcal + change);
 
   explanation.push(
@@ -275,7 +312,9 @@ export function recommendCalories(input: AdaptiveInput): AdaptiveRecommendation 
 
   if (Math.abs(recommended - input.currentTargetKcal) < R.minMeaningfulChangeKcal) {
     keepReasons.push("change_too_small");
-    explanation.push("Forskellen til dit nuværende mål er for lille til at være meningsfuld. Målet beholdes.");
+    explanation.push(
+      "Forskellen til dit nuværende mål er for lille til at være meningsfuld. Målet beholdes.",
+    );
     return keep({
       observedTdeeKcal: Math.round(observedTdee),
       blendedTdeeKcal: Math.round(blended),
@@ -283,7 +322,9 @@ export function recommendCalories(input: AdaptiveInput): AdaptiveRecommendation 
     });
   }
   if (Math.abs(rawChange) > R.maxChangePerAdjustmentKcal) {
-    explanation.push(`Ændringen er begrænset til ${R.maxChangePerAdjustmentKcal} kcal ad gangen for at undgå overreaktion.`);
+    explanation.push(
+      `Ændringen er begrænset til ${R.maxChangePerAdjustmentKcal} kcal ad gangen for at undgå overreaktion.`,
+    );
   }
   explanation.push(`Anbefalet nyt mål: ${recommended} kcal (før ${input.currentTargetKcal} kcal).`);
 

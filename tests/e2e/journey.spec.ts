@@ -37,7 +37,10 @@ test.describe("core journey", () => {
     await expect(page.getByText("Dine mål er gemt")).toBeVisible();
     await expect(page.getByText("Kalorier i dag")).toBeVisible();
 
-    await page.getByRole("link", { name: /Madplan/ }).first().click();
+    await page
+      .getByRole("link", { name: /Madplan/ })
+      .first()
+      .click();
     await page.getByRole("button", { name: "Lav min madplan" }).click();
     await expect(page.getByText(/Uge fra/)).toBeVisible({ timeout: 20_000 });
     // 7 days are rendered

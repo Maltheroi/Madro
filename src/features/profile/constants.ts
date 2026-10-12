@@ -16,7 +16,10 @@ export const ALLERGENS = [
   ["molluscs", "Bløddyr"],
 ] as const;
 export type AllergenCode = (typeof ALLERGENS)[number][0];
-export const ALLERGEN_CODES = ALLERGENS.map(([c]) => c) as unknown as readonly [AllergenCode, ...AllergenCode[]];
+export const ALLERGEN_CODES = ALLERGENS.map(([c]) => c) as unknown as readonly [
+  AllergenCode,
+  ...AllergenCode[],
+];
 export const ALLERGEN_LABEL: Record<string, string> = Object.fromEntries(ALLERGENS);
 
 export const ACTIVITY_LABELS = {

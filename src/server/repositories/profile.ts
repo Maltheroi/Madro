@@ -81,7 +81,8 @@ export async function getProfile(tx: Tx, userId: string): Promise<Profile | null
 }
 
 export async function getActiveGoal(tx: Tx, userId: string): Promise<NutritionGoal | null> {
-  const [r] = await tx`select * from public.nutrition_goals where user_id = ${userId} and is_active`;
+  const [r] =
+    await tx`select * from public.nutrition_goals where user_id = ${userId} and is_active`;
   if (!r) return null;
   return {
     id: r.id,
@@ -102,12 +103,18 @@ export async function getActiveGoal(tx: Tx, userId: string): Promise<NutritionGo
 }
 
 export async function getLatestWeightKg(tx: Tx, userId: string): Promise<number | null> {
-  const [r] = await tx`select weight_kg from public.weight_entries where user_id = ${userId} order by measured_at desc limit 1`;
+  const [r] =
+    await tx`select weight_kg from public.weight_entries where user_id = ${userId} order by measured_at desc limit 1`;
   return r?.weight_kg ?? null;
 }
 
-export async function getAlgorithmVersionId(tx: Tx, key: string, version: string): Promise<string | null> {
-  const [r] = await tx`select id from public.algorithm_versions where key = ${key} and version = ${version}`;
+export async function getAlgorithmVersionId(
+  tx: Tx,
+  key: string,
+  version: string,
+): Promise<string | null> {
+  const [r] =
+    await tx`select id from public.algorithm_versions where key = ${key} and version = ${version}`;
   return r?.id ?? null;
 }
 

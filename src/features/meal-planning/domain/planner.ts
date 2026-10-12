@@ -206,7 +206,11 @@ function dayTotals(meals: PlannedMeal[], recipes: Map<string, PlannerRecipe>): D
   return t;
 }
 
-export function validateDay(totals: DailyTargets, targets: DailyTargets, tol: Tolerances): Violation[] {
+export function validateDay(
+  totals: DailyTargets,
+  targets: DailyTargets,
+  tol: Tolerances,
+): Violation[] {
   const v: Violation[] = [];
   const rel = (a: number, t: number) => (t > 0 ? Math.abs(a - t) / t : 0);
   if (rel(totals.energyKcal, targets.energyKcal) > tol.energy) {
@@ -262,7 +266,8 @@ export function scalePortions(
       const next = quantizeServings(m.servings + Math.sign(gap) * SERVING_STEP);
       if (next === m.servings) return;
       const newGap = Math.abs(gap - (next - m.servings) * r.perServing.energyKcal);
-      if (newGap < Math.abs(gap) && (!best || newGap < best.newGap)) best = { idx, servings: next, newGap };
+      if (newGap < Math.abs(gap) && (!best || newGap < best.newGap))
+        best = { idx, servings: next, newGap };
     });
     if (!best) break;
     const b = best as { idx: number; servings: number };
@@ -295,7 +300,7 @@ function scoreCandidate(r: PlannerRecipe, c: PlannerConstraints, ctx: ScoreConte
   // Protein density relative to the slot's protein expectation.
   const servings = quantizeServings(ctx.slotKcal / r.perServing.energyKcal);
   const kcal = r.perServing.energyKcal * servings;
-  score -= 3 * Math.abs(kcal - ctx.slotKcal) / ctx.slotKcal;
+  score -= (3 * Math.abs(kcal - ctx.slotKcal)) / ctx.slotKcal;
   const proteinPerKcal = r.perServing.proteinG / r.perServing.energyKcal;
   score += Math.min(proteinPerKcal / ctx.slotProteinShare, 1.5);
   // Ingredient reuse lowers waste from partly used packages.
@@ -343,7 +348,9 @@ export function generateMealPlan(input: PlanInput): MealPlanResult {
     const r = recipeMap.get(l.recipeId);
     if (!r) continue;
     if (!isRecipeAllowed(r, c)) {
-      warnings.push(`Den låste opskrift "${r.name}" passer ikke længere til dine restriktioner og er fjernet.`);
+      warnings.push(
+        `Den låste opskrift "${r.name}" passer ikke længere til dine restriktioner og er fjernet.`,
+      );
       lockedMap.delete(`${l.day}:${l.slot}`);
       continue;
     }
@@ -396,7 +403,14 @@ export function generateMealPlan(input: PlanInput): MealPlanResult {
       }
       markUsed(pick, 1);
       mealSlotIndex.push(i);
-      meals.push({ day, slot, recipeId: pick.id, servings: 1, householdServings: 0, locked: false });
+      meals.push({
+        day,
+        slot,
+        recipeId: pick.id,
+        servings: 1,
+        householdServings: 0,
+        locked: false,
+      });
     });
 
     const mealShares = mealSlotIndex.map((i) => shares[i]);
@@ -459,7 +473,8 @@ export function generateMealPlan(input: PlanInput): MealPlanResult {
     seed,
     days,
     valid: days.every((d) => d.violations.length === 0),
-    estimatedCostOre: unknown === days.reduce((a, d) => a + d.meals.length, 0) ? null : Math.round(cost),
+    estimatedCostOre:
+      unknown === days.reduce((a, d) => a + d.meals.length, 0) ? null : Math.round(cost),
     unknownCostMeals: unknown,
     warnings,
   };

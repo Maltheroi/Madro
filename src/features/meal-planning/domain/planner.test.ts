@@ -35,10 +35,14 @@ const recipes: PlannerRecipe[] = [
   r("skyr-bowl", ["breakfast", "snack"], 350, 30, 40, 6),
   r("aeggemad", ["breakfast", "lunch"], 500, 30, 40, 22, { allergens: ["egg", "gluten"] }),
   r("kyllingesalat", ["lunch"], 550, 45, 40, 20, { dietTags: [] }),
-  r("linsesuppe", ["lunch", "dinner"], 500, 28, 65, 12, { dietTags: ["vegan", "vegetarian", "pescetarian"] }),
+  r("linsesuppe", ["lunch", "dinner"], 500, 28, 65, 12, {
+    dietTags: ["vegan", "vegetarian", "pescetarian"],
+  }),
   r("laks-ris", ["dinner"], 700, 45, 70, 25, { dietTags: ["pescetarian"], allergens: ["fish"] }),
   r("kylling-pasta", ["dinner"], 750, 50, 85, 18, { dietTags: [], allergens: ["gluten"] }),
-  r("chili-sin-carne", ["dinner", "lunch"], 650, 35, 80, 15, { dietTags: ["vegan", "vegetarian", "pescetarian"] }),
+  r("chili-sin-carne", ["dinner", "lunch"], 650, 35, 80, 15, {
+    dietTags: ["vegan", "vegetarian", "pescetarian"],
+  }),
   r("frugt-noedder", ["snack"], 250, 7, 25, 14, { allergens: ["nuts"] }),
 ];
 
@@ -86,7 +90,9 @@ describe("meal planner", () => {
     expect(plan.days).toHaveLength(7);
     for (const d of plan.days) {
       expect(d.meals).toHaveLength(3);
-      expect(Math.abs(d.totals.energyKcal - targets.energyKcal) / targets.energyKcal).toBeLessThan(0.1);
+      expect(Math.abs(d.totals.energyKcal - targets.energyKcal) / targets.energyKcal).toBeLessThan(
+        0.1,
+      );
     }
   });
 
@@ -95,7 +101,9 @@ describe("meal planner", () => {
     const b = generateMealPlan({ recipes, constraints, targets, seed: 42 });
     expect(a).toEqual(b);
     const ids = (p: typeof a) => p.days.map((d) => d.meals.map((m) => m.recipeId).join()).join("|");
-    const seeds = [1, 2, 3, 4, 5].map((s) => ids(generateMealPlan({ recipes, constraints, targets, seed: s })));
+    const seeds = [1, 2, 3, 4, 5].map((s) =>
+      ids(generateMealPlan({ recipes, constraints, targets, seed: s })),
+    );
     expect(new Set(seeds).size).toBeGreaterThan(1);
   });
 
@@ -141,7 +149,11 @@ describe("meal planner", () => {
   });
 
   it("scales household servings", () => {
-    const plan = generateMealPlan({ recipes, constraints: { ...constraints, householdSize: 3 }, targets });
+    const plan = generateMealPlan({
+      recipes,
+      constraints: { ...constraints, householdSize: 3 },
+      targets,
+    });
     for (const m of plan.days[0].meals) expect(m.householdServings).toBe(m.servings + 2);
   });
 });

@@ -31,7 +31,12 @@ function getSql(): Sql {
       onnotice: () => {},
       types: {
         // Return numerics as JS numbers; all numeric columns are bounded well within float precision.
-        numeric: { to: 1700, from: [1700], serialize: (x: number) => String(x), parse: (x: string) => Number(x) },
+        numeric: {
+          to: 1700,
+          from: [1700],
+          serialize: (x: number) => String(x),
+          parse: (x: string) => Number(x),
+        },
       },
     });
   }

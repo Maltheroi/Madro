@@ -19,7 +19,8 @@ export interface DiaryEntry {
   source: "recipe" | "ingredient" | "manual" | "planned_meal";
 }
 
-const isoDate = (d: unknown) => (typeof d === "string" ? d.slice(0, 10) : (d as Date).toISOString().slice(0, 10));
+const isoDate = (d: unknown) =>
+  typeof d === "string" ? d.slice(0, 10) : (d as Date).toISOString().slice(0, 10);
 
 function mapEntry(r: Record<string, unknown>): DiaryEntry {
   return {
@@ -45,15 +46,33 @@ export async function getDiaryRange(user: SessionUser, from: string, to: string)
     ]);
     return {
       entries: entries.map(mapEntry),
-      completeDays: new Set(days.filter((d) => d.marked_complete).map((d) => isoDate(d.entry_date))),
+      completeDays: new Set(
+        days.filter((d) => d.marked_complete).map((d) => isoDate(d.entry_date)),
+      ),
     };
   });
 }
 
 type NewEntry =
   | { kind: "recipe"; date: string; slot: MealSlot | null; recipeId: string; servings: number }
-  | { kind: "ingredient"; date: string; slot: MealSlot | null; ingredientId: string; grams: number; state: FoodState }
-  | { kind: "manual"; date: string; slot: MealSlot | null; description: string; energyKcal: number; proteinG: number; carbohydrateG: number; fatG: number }
+  | {
+      kind: "ingredient";
+      date: string;
+      slot: MealSlot | null;
+      ingredientId: string;
+      grams: number;
+      state: FoodState;
+    }
+  | {
+      kind: "manual";
+      date: string;
+      slot: MealSlot | null;
+      description: string;
+      energyKcal: number;
+      proteinG: number;
+      carbohydrateG: number;
+      fatG: number;
+    }
   | { kind: "planned_meal"; date: string; plannedMealId: string };
 
 export class DiaryDataError extends Error {}
@@ -74,7 +93,8 @@ export async function addDiaryEntry(user: SessionUser, e: NewEntry): Promise<voi
       let slot: MealSlot | null;
       let plannedMealId: string | null = null;
       if (e.kind === "planned_meal") {
-        const [pm] = await tx`select recipe_id, servings, slot from public.planned_meals where id = ${e.plannedMealId} and user_id = ${user.id}`;
+        const [pm] =
+          await tx`select recipe_id, servings, slot from public.planned_meals where id = ${e.plannedMealId} and user_id = ${user.id}`;
         if (!pm) throw new DiaryDataError("Måltidet findes ikke.");
         recipeId = pm.recipe_id;
         servings = pm.servings;
@@ -88,7 +108,9 @@ export async function addDiaryEntry(user: SessionUser, e: NewEntry): Promise<voi
       const recipe = catalog.recipeById.get(recipeId);
       if (!recipe) throw new DiaryDataError("Opskriften findes ikke.");
       if (recipe.nutrition.incompleteNutrients.includes("energyKcal")) {
-        throw new DiaryDataError("Opskriften mangler ernæringsdata og kan ikke registreres automatisk. Brug manuel registrering.");
+        throw new DiaryDataError(
+          "Opskriften mangler ernæringsdata og kan ikke registreres automatisk. Brug manuel registrering.",
+        );
       }
       const n = recipe.nutrition.perServing;
       await tx`
@@ -100,9 +122,14 @@ export async function addDiaryEntry(user: SessionUser, e: NewEntry): Promise<voi
     }
     const ing = catalog.ingredients.get(e.ingredientId);
     if (!ing) throw new DiaryDataError("Fødevaren findes ikke.");
-    const result = calculateNutrition([{ ingredientId: ing.ingredientId, quantity: e.grams, unit: "g", state: e.state }], catalog.ingredients);
+    const result = calculateNutrition(
+      [{ ingredientId: ing.ingredientId, quantity: e.grams, unit: "g", state: e.state }],
+      catalog.ingredients,
+    );
     if (result.incompleteNutrients.includes("energyKcal")) {
-      throw new DiaryDataError(`Vi mangler energidata for ${ing.nameDa} i den tilstand. Brug manuel registrering.`);
+      throw new DiaryDataError(
+        `Vi mangler energidata for ${ing.nameDa} i den tilstand. Brug manuel registrering.`,
+      );
     }
     const t = result.totals;
     await tx`
@@ -113,11 +140,21 @@ export async function addDiaryEntry(user: SessionUser, e: NewEntry): Promise<voi
 }
 
 export async function deleteDiaryEntry(user: SessionUser, id: string): Promise<void> {
-  await withUser(user.id, (tx) => tx`delete from public.food_diary_entries where id = ${id} and user_id = ${user.id}`);
+  await withUser(
+    user.id,
+    (tx) => tx`delete from public.food_diary_entries where id = ${id} and user_id = ${user.id}`,
+  );
 }
 
-export async function setDayComplete(user: SessionUser, date: string, complete: boolean): Promise<void> {
-  await withUser(user.id, (tx) => tx`
+export async function setDayComplete(
+  user: SessionUser,
+  date: string,
+  complete: boolean,
+): Promise<void> {
+  await withUser(
+    user.id,
+    (tx) => tx`
     insert into public.food_diary_days (user_id, entry_date, marked_complete) values (${user.id}, ${date}, ${complete})
-    on conflict (user_id, entry_date) do update set marked_complete = excluded.marked_complete`);
+    on conflict (user_id, entry_date) do update set marked_complete = excluded.marked_complete`,
+  );
 }

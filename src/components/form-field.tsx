@@ -18,23 +18,33 @@ export function FormField({
   error?: string;
   optional?: boolean;
   className?: string;
-  children: React.ReactElement<{ id?: string; "aria-invalid"?: boolean; "aria-describedby"?: string }>;
+  children: React.ReactElement<{
+    id?: string;
+    "aria-invalid"?: boolean;
+    "aria-describedby"?: string;
+  }>;
 }) {
-  const describedBy = [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(" ") || undefined;
+  const describedBy =
+    [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(" ") ||
+    undefined;
   return (
     <div className={cn("grid gap-1.5", className)}>
       <Label htmlFor={id}>
         {label}
-        {optional ? <span className="font-normal text-muted-foreground"> (valgfrit)</span> : null}
+        {optional ? <span className="text-muted-foreground font-normal"> (valgfrit)</span> : null}
       </Label>
-      {React.cloneElement(children, { id, "aria-invalid": error ? true : undefined, "aria-describedby": describedBy })}
+      {React.cloneElement(children, {
+        id,
+        "aria-invalid": error ? true : undefined,
+        "aria-describedby": describedBy,
+      })}
       {hint ? (
-        <p id={`${id}-hint`} className="text-xs text-muted-foreground">
+        <p id={`${id}-hint`} className="text-muted-foreground text-xs">
           {hint}
         </p>
       ) : null}
       {error ? (
-        <p id={`${id}-error`} className="text-sm text-destructive">
+        <p id={`${id}-error`} className="text-destructive text-sm">
           {error}
         </p>
       ) : null}

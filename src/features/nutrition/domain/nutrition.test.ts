@@ -67,7 +67,9 @@ describe("energy", () => {
     // 10*80 + 6.25*180 - 5*30 + 5 = 1780
     expect(mifflinStJeorBmr(base)).toBe(1780);
     // female: 10*60 + 6.25*165 - 5*40 - 161 = 1270.25
-    expect(mifflinStJeorBmr({ weightKg: 60, heightCm: 165, ageYears: 40, sex: "female" })).toBe(1270.25);
+    expect(mifflinStJeorBmr({ weightKg: 60, heightCm: 165, ageYears: 40, sex: "female" })).toBe(
+      1270.25,
+    );
   });
 
   it("maintenance target equals TDEE rounded to 10 kcal", () => {

@@ -12,7 +12,8 @@ export async function GET(request: NextRequest) {
   if (tokenHash && type) {
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
-    if (!error) return NextResponse.redirect(new URL(type === "recovery" ? "/ny-adgangskode" : next, origin));
+    if (!error)
+      return NextResponse.redirect(new URL(type === "recovery" ? "/ny-adgangskode" : next, origin));
   }
   return NextResponse.redirect(new URL("/log-ind?fejl=link", origin));
 }

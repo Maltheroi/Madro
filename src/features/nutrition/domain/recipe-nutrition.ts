@@ -63,10 +63,7 @@ export interface RecipeLine {
 }
 
 export type MissingReason =
-  | "no_facts"
-  | "unit_not_convertible"
-  | "state_not_convertible"
-  | "nutrient_missing";
+  "no_facts" | "unit_not_convertible" | "state_not_convertible" | "nutrient_missing";
 
 export interface MissingDataIssue {
   ingredientId: string;
@@ -122,7 +119,9 @@ export function resolveLine(
   }
   // "as_sold" facts are interchangeable with raw for products eaten as purchased.
   const asSold = ingredient.facts.find(
-    (f) => (f.state === "as_sold" && line.state === "raw") || (f.state === "raw" && line.state === "as_sold"),
+    (f) =>
+      (f.state === "as_sold" && line.state === "raw") ||
+      (f.state === "raw" && line.state === "as_sold"),
   );
   if (asSold) return { grams, facts: asSold };
   return "state_not_convertible";
@@ -162,9 +161,16 @@ export function calculateNutrition(
     const coreMissing = missing.filter((k) => CORE_NUTRIENTS.includes(k));
     if (coreMissing.length === 0) completeGrams += resolved.grams;
     if (missing.length > 0) {
-      issues.push({ ingredientId: line.ingredientId, name, reason: "nutrient_missing", nutrients: missing });
+      issues.push({
+        ingredientId: line.ingredientId,
+        name,
+        reason: "nutrient_missing",
+        nutrients: missing,
+      });
     }
-    if (CONFIDENCE_ORDER.indexOf(resolved.facts.confidence) < CONFIDENCE_ORDER.indexOf(confidence)) {
+    if (
+      CONFIDENCE_ORDER.indexOf(resolved.facts.confidence) < CONFIDENCE_ORDER.indexOf(confidence)
+    ) {
       confidence = resolved.facts.confidence;
     }
   }

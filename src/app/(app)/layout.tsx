@@ -21,7 +21,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </Link>
         <AppNav />
         <form action={signOut} className="mt-auto px-1">
-          <Button type="submit" variant="ghost" className="w-full justify-start text-muted-foreground">
+          <Button
+            type="submit"
+            variant="ghost"
+            className="text-muted-foreground w-full justify-start"
+          >
             <LogOut aria-hidden /> Log ud
           </Button>
         </form>

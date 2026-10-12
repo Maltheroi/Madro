@@ -23,9 +23,12 @@ function Progress({
       aria-valuemin={0}
       aria-valuemax={Math.round(max)}
       aria-valuenow={Math.round(value)}
-      className={cn("h-2.5 w-full overflow-hidden rounded-full bg-muted", className)}
+      className={cn("bg-muted h-2.5 w-full overflow-hidden rounded-full", className)}
     >
-      <div className={cn("h-full rounded-full bg-primary transition-all", indicatorClassName)} style={{ width: `${pct}%` }} />
+      <div
+        className={cn("bg-primary h-full rounded-full transition-all", indicatorClassName)}
+        style={{ width: `${pct}%` }}
+      />
     </div>
   );
 }

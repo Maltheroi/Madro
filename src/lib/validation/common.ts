@@ -8,16 +8,27 @@ export const danishNumber = (opts: { min: number; max: number; label: string }) 
     z
       .number({ error: `Angiv ${opts.label}.` })
       .refine(Number.isFinite, `Angiv ${opts.label} som et tal.`)
-      .refine((n) => n >= opts.min && n <= opts.max, `${opts.label[0].toUpperCase()}${opts.label.slice(1)} skal være mellem ${opts.min} og ${opts.max}.`),
+      .refine(
+        (n) => n >= opts.min && n <= opts.max,
+        `${opts.label[0].toUpperCase()}${opts.label.slice(1)} skal være mellem ${opts.min} og ${opts.max}.`,
+      ),
   );
 
 export const optionalDanishNumber = (opts: { min: number; max: number; label: string }) =>
   z.preprocess(
-    (v) => (v === "" || v === null || v === undefined ? undefined : typeof v === "string" ? parseDanishNumber(v) : v),
+    (v) =>
+      v === "" || v === null || v === undefined
+        ? undefined
+        : typeof v === "string"
+          ? parseDanishNumber(v)
+          : v,
     z
       .number()
       .refine(Number.isFinite, `Angiv ${opts.label} som et tal.`)
-      .refine((n) => n >= opts.min && n <= opts.max, `${opts.label[0].toUpperCase()}${opts.label.slice(1)} skal være mellem ${opts.min} og ${opts.max}.`)
+      .refine(
+        (n) => n >= opts.min && n <= opts.max,
+        `${opts.label[0].toUpperCase()}${opts.label.slice(1)} skal være mellem ${opts.min} og ${opts.max}.`,
+      )
       .optional(),
   );
 

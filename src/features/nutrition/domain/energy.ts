@@ -221,7 +221,9 @@ export function estimateEnergy(input: EnergyInput): EnergyEstimate {
 /** Energy implied by macros (for showing how targets add up). */
 export function kcalFromMacros(m: MacroTargets): number {
   return (
-    m.proteinG * KCAL_PER_G.protein + m.carbohydrateG * KCAL_PER_G.carbohydrate + m.fatG * KCAL_PER_G.fat
+    m.proteinG * KCAL_PER_G.protein +
+    m.carbohydrateG * KCAL_PER_G.carbohydrate +
+    m.fatG * KCAL_PER_G.fat
   );
 }
 

@@ -16,7 +16,9 @@ export default async function OnboardingPage() {
     <main id="indhold" className="mx-auto w-full max-w-xl px-4 py-8">
       <Logo />
       <h1 className="mt-8 text-2xl font-semibold tracking-tight">Lad os sætte dine mål op</h1>
-      <p className="mt-1 text-muted-foreground">Felter markeret som valgfrie kan du springe over og udfylde senere.</p>
+      <p className="text-muted-foreground mt-1">
+        Felter markeret som valgfrie kan du springe over og udfylde senere.
+      </p>
       <div className="mt-8">
         <ProfileForm mode="wizard" defaults={{}} />
       </div>

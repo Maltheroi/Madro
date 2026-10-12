@@ -20,17 +20,30 @@ import { formatDecimal, formatInt, formatKg, formatKr, todayInCopenhagen } from 
 export const metadata: Metadata = { title: "Oversigt" };
 
 function hourInCopenhagen() {
-  return Number(new Intl.DateTimeFormat("da-DK", { hour: "numeric", hour12: false, timeZone: "Europe/Copenhagen" }).format(new Date()));
+  return Number(
+    new Intl.DateTimeFormat("da-DK", {
+      hour: "numeric",
+      hour12: false,
+      timeZone: "Europe/Copenhagen",
+    }).format(new Date()),
+  );
 }
 
 const SLOT_END_HOUR: Record<MealSlot, number> = { breakfast: 10, lunch: 14, snack: 16, dinner: 21 };
 
-export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ velkommen?: string }> }) {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ velkommen?: string }>;
+}) {
   const { velkommen } = await searchParams;
   const user = await requireUser();
   const today = todayInCopenhagen();
   const [{ profile, goal }, planData, diary, weight, list] = await Promise.all([
-    withUser(user.id, async (tx) => ({ profile: await getProfile(tx, user.id), goal: await getActiveGoal(tx, user.id) })),
+    withUser(user.id, async (tx) => ({
+      profile: await getProfile(tx, user.id),
+      goal: await getActiveGoal(tx, user.id),
+    })),
     getPlanForWeek(user),
     getDiaryRange(user, today, today),
     getWeightData(user),
@@ -44,31 +57,50 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   // Next meal: today's planned meals not yet logged, in slot order, after the current time window.
   const plan = planData.plan;
-  const dayIndex = plan ? Math.round((Date.parse(today) - Date.parse(plan.weekStart)) / 86_400_000) : -1;
-  const loggedPlanned = new Set(diary.entries.filter((e) => e.source === "planned_meal").map((e) => e.description));
+  const dayIndex = plan
+    ? Math.round((Date.parse(today) - Date.parse(plan.weekStart)) / 86_400_000)
+    : -1;
+  const loggedPlanned = new Set(
+    diary.entries.filter((e) => e.source === "planned_meal").map((e) => e.description),
+  );
   const hour = hourInCopenhagen();
   const todaysMeals = plan?.meals.filter((m) => m.dayIndex === dayIndex) ?? [];
   const nextMeal =
     todaysMeals.find((m) => {
       const r = planData.catalog.recipeById.get(m.recipeId);
       return r && !loggedPlanned.has(r.name) && hour < SLOT_END_HOUR[m.slot];
-    }) ?? todaysMeals.find((m) => !loggedPlanned.has(planData.catalog.recipeById.get(m.recipeId)?.name ?? ""));
+    }) ??
+    todaysMeals.find(
+      (m) => !loggedPlanned.has(planData.catalog.recipeById.get(m.recipeId)?.name ?? ""),
+    );
   const nextRecipe = nextMeal ? planData.catalog.recipeById.get(nextMeal.recipeId) : null;
 
-  const trend = smoothTrend(dailyWeights(weight.weights.map((w) => ({ measuredAt: w.measuredAt, weightKg: w.weightKg }))));
+  const trend = smoothTrend(
+    dailyWeights(weight.weights.map((w) => ({ measuredAt: w.measuredAt, weightKg: w.weightKg }))),
+  );
   const latestTrend = trend.at(-1);
-  const weekAgo = trend.filter((p) => Date.parse(p.date) <= Date.parse(today) - 7 * 86_400_000).at(-1);
+  const weekAgo = trend
+    .filter((p) => Date.parse(p.date) <= Date.parse(today) - 7 * 86_400_000)
+    .at(-1);
   const pendingRec = weight.recommendations.find((r) => r.status === "pending");
 
-  const listForThisWeek = list && plan && new Date(list.createdAt) >= new Date(`${currentWeekStart()}T00:00:00Z`) ? list : null;
+  const listForThisWeek =
+    list && plan && new Date(list.createdAt) >= new Date(`${currentWeekStart()}T00:00:00Z`)
+      ? list
+      : null;
   const budget = profile?.weeklyBudgetOre ?? null;
 
   return (
     <>
-      <PageHeader title={`Hej${profile?.displayName ? ` ${profile.displayName}` : ""}`} description="Her er din dag." />
+      <PageHeader
+        title={`Hej${profile?.displayName ? ` ${profile.displayName}` : ""}`}
+        description="Her er din dag."
+      />
       {velkommen ? (
         <Alert variant="success" className="mb-6">
-          <AlertDescription>Dine mål er gemt. Næste skridt er at lave din første madplan.</AlertDescription>
+          <AlertDescription>
+            Dine mål er gemt. Næste skridt er at lave din første madplan.
+          </AlertDescription>
         </Alert>
       ) : null}
       {pendingRec ? (
@@ -76,7 +108,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <Info aria-hidden />
           <AlertDescription>
             <p>
-              Vi har en ny anbefaling til dit kaloriemål: {formatInt(pendingRec.recommendedTargetKcal)} kcal (nu {formatInt(pendingRec.previousTargetKcal)} kcal).{" "}
+              Vi har en ny anbefaling til dit kaloriemål:{" "}
+              {formatInt(pendingRec.recommendedTargetKcal)} kcal (nu{" "}
+              {formatInt(pendingRec.previousTargetKcal)} kcal).{" "}
               <Link href="/vaegt" className="font-medium underline">
                 Se forklaringen
               </Link>
@@ -89,14 +123,27 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <CardHeader>
             <CardDescription>Kalorier i dag</CardDescription>
             <CardTitle className="text-3xl">
-              {formatInt(eaten.kcal)} <span className="text-base font-normal text-muted-foreground">/ {goal ? formatInt(goal.energyKcal) : "–"} kcal</span>
+              {formatInt(eaten.kcal)}{" "}
+              <span className="text-muted-foreground text-base font-normal">
+                / {goal ? formatInt(goal.energyKcal) : "–"} kcal
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-2">
-            <Progress value={eaten.kcal} max={goal?.energyKcal ?? 1} label="Kalorier i forhold til dagens mål" />
-            <p className="text-sm text-muted-foreground">
-              {goal ? (goal.energyKcal - eaten.kcal >= 0 ? `${formatInt(goal.energyKcal - eaten.kcal)} kcal tilbage` : `${formatInt(eaten.kcal - goal.energyKcal)} kcal over målet`) : "Intet mål endnu"}
-              {goal ? ` · mål: ${goal.source === "adaptive" ? "tilpasset dine data" : goal.source === "user" ? "dit eget" : "estimat"}` : ""}
+            <Progress
+              value={eaten.kcal}
+              max={goal?.energyKcal ?? 1}
+              label="Kalorier i forhold til dagens mål"
+            />
+            <p className="text-muted-foreground text-sm">
+              {goal
+                ? goal.energyKcal - eaten.kcal >= 0
+                  ? `${formatInt(goal.energyKcal - eaten.kcal)} kcal tilbage`
+                  : `${formatInt(eaten.kcal - goal.energyKcal)} kcal over målet`
+                : "Intet mål endnu"}
+              {goal
+                ? ` · mål: ${goal.source === "adaptive" ? "tilpasset dine data" : goal.source === "user" ? "dit eget" : "estimat"}`
+                : ""}
             </p>
           </CardContent>
         </Card>
@@ -104,12 +151,23 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <CardHeader>
             <CardDescription>Protein i dag</CardDescription>
             <CardTitle className="text-3xl">
-              {formatInt(eaten.protein)} <span className="text-base font-normal text-muted-foreground">/ {goal ? goal.proteinG : "–"} g</span>
+              {formatInt(eaten.protein)}{" "}
+              <span className="text-muted-foreground text-base font-normal">
+                / {goal ? goal.proteinG : "–"} g
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-2">
-            <Progress value={eaten.protein} max={goal?.proteinG ?? 1} label="Protein i forhold til dagens mål" indicatorClassName="bg-chart-3" />
-            <Link href="/madregistrering" className="text-sm text-primary underline-offset-4 hover:underline">
+            <Progress
+              value={eaten.protein}
+              max={goal?.proteinG ?? 1}
+              label="Protein i forhold til dagens mål"
+              indicatorClassName="bg-chart-3"
+            />
+            <Link
+              href="/madregistrering"
+              className="text-primary text-sm underline-offset-4 hover:underline"
+            >
               Registrér mad
             </Link>
           </CardContent>
@@ -119,18 +177,24 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <CardDescription>Næste måltid</CardDescription>
             {nextMeal && nextRecipe ? (
               <CardTitle>
-                <Link href={`/opskrifter/${nextRecipe.slug}?portioner=${nextMeal.servings}`} className="underline-offset-4 hover:underline">
+                <Link
+                  href={`/opskrifter/${nextRecipe.slug}?portioner=${nextMeal.servings}`}
+                  className="underline-offset-4 hover:underline"
+                >
                   {nextRecipe.name}
                 </Link>
               </CardTitle>
             ) : (
-              <CardTitle>{plan ? "Ikke flere planlagte måltider i dag" : "Ingen madplan endnu"}</CardTitle>
+              <CardTitle>
+                {plan ? "Ikke flere planlagte måltider i dag" : "Ingen madplan endnu"}
+              </CardTitle>
             )}
           </CardHeader>
           <CardContent>
             {nextMeal && nextRecipe ? (
-              <p className="text-sm text-muted-foreground">
-                {MEAL_SLOT_LABELS_DA[nextMeal.slot]} · {formatInt(nextRecipe.nutrition.perServing.energyKcal * nextMeal.servings)} kcal ·{" "}
+              <p className="text-muted-foreground text-sm">
+                {MEAL_SLOT_LABELS_DA[nextMeal.slot]} ·{" "}
+                {formatInt(nextRecipe.nutrition.perServing.energyKcal * nextMeal.servings)} kcal ·{" "}
                 {formatInt(nextRecipe.nutrition.perServing.proteinG * nextMeal.servings)} g protein
               </p>
             ) : (
@@ -145,15 +209,17 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <Card>
           <CardHeader>
             <CardDescription>Vægttrend</CardDescription>
-            <CardTitle className="text-3xl">{latestTrend ? formatKg(latestTrend.trendKg) : "–"}</CardTitle>
+            <CardTitle className="text-3xl">
+              {latestTrend ? formatKg(latestTrend.trendKg) : "–"}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               {latestTrend && weekAgo
                 ? `${latestTrend.trendKg - weekAgo.trendKg >= 0 ? "+" : ""}${formatDecimal(latestTrend.trendKg - weekAgo.trendKg)} kg på en uge (udjævnet)`
                 : "Vej dig et par gange om ugen for at se en trend."}
             </p>
-            <Link href="/vaegt" className="text-sm text-primary underline-offset-4 hover:underline">
+            <Link href="/vaegt" className="text-primary text-sm underline-offset-4 hover:underline">
               Registrér vægt
             </Link>
           </CardContent>
@@ -172,15 +238,31 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <CardContent className="grid gap-2">
             {budget !== null && listForThisWeek ? (
               <>
-                <Progress value={listForThisWeek.totals.expectedOre} max={budget} label="Forventet indkøb i forhold til ugebudget" indicatorClassName={listForThisWeek.totals.expectedOre > budget ? "bg-destructive" : "bg-chart-2"} />
-                <p className="text-sm text-muted-foreground">
-                  Forventet indkøb {formatKr(listForThisWeek.totals.expectedOre)} ud fra indkøbslisten. Priserne er{" "}
-                  {listForThisWeek.totals.statusCounts.synthetic > 0 ? "syntetiske testpriser" : "vejledende"}.
+                <Progress
+                  value={listForThisWeek.totals.expectedOre}
+                  max={budget}
+                  label="Forventet indkøb i forhold til ugebudget"
+                  indicatorClassName={
+                    listForThisWeek.totals.expectedOre > budget ? "bg-destructive" : "bg-chart-2"
+                  }
+                />
+                <p className="text-muted-foreground text-sm">
+                  Forventet indkøb {formatKr(listForThisWeek.totals.expectedOre)} ud fra
+                  indkøbslisten. Priserne er{" "}
+                  {listForThisWeek.totals.statusCounts.synthetic > 0
+                    ? "syntetiske testpriser"
+                    : "vejledende"}
+                  .
                 </p>
               </>
             ) : (
-              <Link href="/indkobsliste" className="text-sm text-primary underline-offset-4 hover:underline">
-                {plan ? "Find den bedste butik til ugens kurv" : "Lav en madplan for at beregne kurven"}
+              <Link
+                href="/indkobsliste"
+                className="text-primary text-sm underline-offset-4 hover:underline"
+              >
+                {plan
+                  ? "Find den bedste butik til ugens kurv"
+                  : "Lav en madplan for at beregne kurven"}
               </Link>
             )}
           </CardContent>

@@ -11,7 +11,8 @@ function addDays(date: string, days: number) {
 const today = "2026-10-12";
 
 /** Deterministic pseudo-noise in [-0.5, 0.5]. */
-const noise = (i: number) => ((Math.sin(i * 12.9898) * 43758.5453) % 1) - 0.5 * Math.sign(Math.sin(i));
+const noise = (i: number) =>
+  ((Math.sin(i * 12.9898) * 43758.5453) % 1) - 0.5 * Math.sign(Math.sin(i));
 
 function scenario(opts: {
   days: number;
@@ -61,27 +62,42 @@ describe("trend", () => {
   });
 
   it("dampens a single outlier", () => {
-    const days = [80, 80, 80, 83, 80].map((w, i) => ({ date: addDays("2026-10-01", i), weightKg: w, count: 1 }));
+    const days = [80, 80, 80, 83, 80].map((w, i) => ({
+      date: addDays("2026-10-01", i),
+      weightKg: w,
+      count: 1,
+    }));
     const t = smoothTrend(days);
     expect(t[3].trendKg).toBeCloseTo(80.3);
   });
 
   it("regression recovers a known slope", () => {
-    const pts = Array.from({ length: 10 }, (_, i) => ({ date: addDays("2026-10-01", i), value: 80 - 0.1 * i }));
+    const pts = Array.from({ length: 10 }, (_, i) => ({
+      date: addDays("2026-10-01", i),
+      value: 80 - 0.1 * i,
+    }));
     expect(linearRegression(pts)!.slopePerDay).toBeCloseTo(-0.1);
   });
 });
 
 describe("adaptive recommendation", () => {
   it("keeps the target with too little data", () => {
-    const rec = recommendCalories({ ...base, ...scenario({ days: 7, startKg: 85, kgPerWeek: -0.4, intake: 2200 }) });
+    const rec = recommendCalories({
+      ...base,
+      ...scenario({ days: 7, startKg: 85, kgPerWeek: -0.4, intake: 2200 }),
+    });
     expect(rec.decision).toBe("keep");
-    expect(rec.keepReasons).toEqual(expect.arrayContaining(["insufficient_span", "insufficient_weigh_ins"]));
+    expect(rec.keepReasons).toEqual(
+      expect.arrayContaining(["insufficient_span", "insufficient_weigh_ins"]),
+    );
     expect(rec.recommendedTargetKcal).toBe(2200);
   });
 
   it("keeps the target when food logs are incomplete", () => {
-    const rec = recommendCalories({ ...base, ...scenario({ days: 21, startKg: 85, kgPerWeek: -0.4, intake: 2200, logEvery: 2 }) });
+    const rec = recommendCalories({
+      ...base,
+      ...scenario({ days: 21, startKg: 85, kgPerWeek: -0.4, intake: 2200, logEvery: 2 }),
+    });
     expect(rec.decision).toBe("keep");
     expect(rec.keepReasons).toContain("incomplete_food_logs");
   });
@@ -97,7 +113,10 @@ describe("adaptive recommendation", () => {
 
   it("lowers the target conservatively when weight is stable on a deficit target", () => {
     // Weight flat at 2200 kcal → TDEE ≈ 2200, goal deficit ≈ 425 → wants ~1775, capped to −150.
-    const rec = recommendCalories({ ...base, ...scenario({ days: 21, startKg: 85, kgPerWeek: 0, intake: 2200, noiseKg: 0.6 }) });
+    const rec = recommendCalories({
+      ...base,
+      ...scenario({ days: 21, startKg: 85, kgPerWeek: 0, intake: 2200, noiseKg: 0.6 }),
+    });
     expect(rec.decision).toBe("adjust");
     expect(rec.recommendedTargetKcal).toBe(2050);
     expect(rec.explanation.join(" ")).toContain("begrænset");
@@ -118,13 +137,19 @@ describe("adaptive recommendation", () => {
 
   it("rejects implausible estimates", () => {
     // Huge apparent loss with high logged intake → TDEE far above prior.
-    const rec = recommendCalories({ ...base, ...scenario({ days: 21, startKg: 90, kgPerWeek: -3, intake: 3000 }) });
+    const rec = recommendCalories({
+      ...base,
+      ...scenario({ days: 21, startKg: 90, kgPerWeek: -3, intake: 3000 }),
+    });
     expect(rec.decision).toBe("keep");
     expect(rec.keepReasons).toContain("implausible_estimate");
   });
 
   it("is robust to noisy daily weights", () => {
-    const rec = recommendCalories({ ...base, ...scenario({ days: 21, startKg: 85, kgPerWeek: 0, intake: 2200, noiseKg: 2 }) });
+    const rec = recommendCalories({
+      ...base,
+      ...scenario({ days: 21, startKg: 85, kgPerWeek: 0, intake: 2200, noiseKg: 2 }),
+    });
     expect(Math.abs(rec.recommendedTargetKcal - base.currentTargetKcal)).toBeLessThanOrEqual(150);
   });
 

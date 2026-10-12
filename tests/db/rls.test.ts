@@ -9,7 +9,10 @@ const alice = "11111111-1111-4111-8111-111111111111";
 const bob = "22222222-2222-4222-8222-222222222222";
 
 /** Run `fn` inside a transaction as an authenticated user, then roll back. */
-async function asUser<T>(userId: string, fn: (tx: postgres.TransactionSql) => Promise<T>): Promise<T> {
+async function asUser<T>(
+  userId: string,
+  fn: (tx: postgres.TransactionSql) => Promise<T>,
+): Promise<T> {
   let result: T;
   await sql
     .begin(async (tx) => {
@@ -51,8 +54,10 @@ describe("schema", () => {
   it("seeds a usable development catalog", async () => {
     const [{ count: recipes }] = await sql`select count(*)::int as count from public.recipes`;
     const [{ count: facts }] = await sql`select count(*)::int as count from public.nutrition_facts`;
-    const [{ count: prices }] = await sql`select count(*)::int as count from public.price_observations where is_synthetic`;
-    const [{ count: real }] = await sql`select count(*)::int as count from public.price_observations where not is_synthetic`;
+    const [{ count: prices }] =
+      await sql`select count(*)::int as count from public.price_observations where is_synthetic`;
+    const [{ count: real }] =
+      await sql`select count(*)::int as count from public.price_observations where not is_synthetic`;
     expect(recipes).toBeGreaterThanOrEqual(15);
     expect(facts).toBeGreaterThanOrEqual(40);
     expect(prices).toBeGreaterThan(100);
@@ -60,7 +65,9 @@ describe("schema", () => {
   });
 
   it("keeps price observations append-only", async () => {
-    await expect(sql`update public.price_observations set price_ore = 1 where true`).rejects.toThrow(/append-only/);
+    await expect(
+      sql`update public.price_observations set price_ore = 1 where true`,
+    ).rejects.toThrow(/append-only/);
   });
 
   it("enforces value constraints", async () => {
@@ -84,7 +91,11 @@ describe("row level security", () => {
 
   it("users cannot insert rows for someone else", async () => {
     await expect(
-      asUser(alice, (tx) => tx`insert into public.weight_entries (user_id, measured_at, weight_kg) values (${bob}, now(), 70)`),
+      asUser(
+        alice,
+        (tx) =>
+          tx`insert into public.weight_entries (user_id, measured_at, weight_kg) values (${bob}, now(), 70)`,
+      ),
     ).rejects.toThrow(/row-level security/);
   });
 
@@ -99,7 +110,9 @@ describe("row level security", () => {
   it("profiles are private and admin status cannot be self-granted", async () => {
     const rows = await asUser(alice, (tx) => tx`select id from public.profiles`);
     expect(rows.map((r) => r.id)).toEqual([alice]);
-    await expect(asUser(alice, (tx) => tx`insert into public.app_admins (user_id) values (${alice})`)).rejects.toThrow();
+    await expect(
+      asUser(alice, (tx) => tx`insert into public.app_admins (user_id) values (${alice})`),
+    ).rejects.toThrow();
     const isAdmin = await asUser(alice, (tx) => tx`select public.is_admin() as a`);
     expect(isAdmin[0].a).toBe(false);
   });
@@ -108,7 +121,11 @@ describe("row level security", () => {
     const rows = await asUser(alice, (tx) => tx`select count(*)::int as c from public.ingredients`);
     expect(rows[0].c).toBeGreaterThan(0);
     await expect(
-      asUser(alice, (tx) => tx`insert into public.ingredients (slug, canonical_name, name_da, category) values ('x', 'x', 'x', 'x')`),
+      asUser(
+        alice,
+        (tx) =>
+          tx`insert into public.ingredients (slug, canonical_name, name_da, category) values ('x', 'x', 'x', 'x')`,
+      ),
     ).rejects.toThrow(/row-level security/);
   });
 
@@ -118,7 +135,8 @@ describe("row level security", () => {
     const seenByBob = await asUser(alice, async (tx) => {
       await tx`insert into public.price_observations (product_id, retailer_id, price_ore, price_type, observed_at, source_key, confidence, reported_by)
                values (${pid}, ${rid}, 1995, 'manual', now(), 'manual', 'low', ${alice})`;
-      const own = await tx`select count(*)::int as c from public.price_observations where reported_by = ${alice}`;
+      const own =
+        await tx`select count(*)::int as c from public.price_observations where reported_by = ${alice}`;
       expect(own[0].c).toBe(1);
       // Same transaction, switch identity to bob.
       await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: bob })}, true)`;
@@ -128,10 +146,16 @@ describe("row level security", () => {
   });
 
   it("users cannot forge provider prices", async () => {
-    const [{ id: pid, retailer_id: rid }] = await sql`select id, retailer_id from public.products limit 1`;
+    const [{ id: pid, retailer_id: rid }] =
+      await sql`select id, retailer_id from public.products limit 1`;
     await expect(
-      asUser(alice, (tx) => tx`insert into public.price_observations (product_id, retailer_id, price_ore, price_type, observed_at, source_key, confidence)
-                              values (${pid}, ${rid}, 100, 'shelf', now(), 'fake', 'high')`),
+      asUser(
+        alice,
+        (
+          tx,
+        ) => tx`insert into public.price_observations (product_id, retailer_id, price_ore, price_type, observed_at, source_key, confidence)
+                              values (${pid}, ${rid}, 100, 'shelf', now(), 'fake', 'high')`,
+      ),
     ).rejects.toThrow();
   });
 
@@ -139,18 +163,33 @@ describe("row level security", () => {
     await sql`insert into public.meal_plans (id, user_id, week_start, seed, targets) values ('33333333-3333-4333-8333-333333333333', ${bob}, '2026-10-12', 1, '{}')`;
     const [{ id: recipeId }] = await sql`select id from public.recipes limit 1`;
     await expect(
-      asUser(alice, (tx) => tx`insert into public.planned_meals (meal_plan_id, user_id, day_index, slot, recipe_id, servings, household_servings)
-                              values ('33333333-3333-4333-8333-333333333333', ${alice}, 0, 'dinner', ${recipeId}, 1, 1)`),
+      asUser(
+        alice,
+        (
+          tx,
+        ) => tx`insert into public.planned_meals (meal_plan_id, user_id, day_index, slot, recipe_id, servings, household_servings)
+                              values ('33333333-3333-4333-8333-333333333333', ${alice}, 0, 'dinner', ${recipeId}, 1, 1)`,
+      ),
     ).rejects.toThrow(/row-level security/);
   });
 
   it("recommendations: users may change status only", async () => {
-    const [{ id: alg }] = await sql`select id from public.algorithm_versions where key = 'adaptive-energy'`;
-    const [{ id }] = await sql`insert into public.calorie_recommendations (user_id, algorithm_version_id, decision, previous_target_kcal, recommended_target_kcal, quality, explanation)
+    const [{ id: alg }] =
+      await sql`select id from public.algorithm_versions where key = 'adaptive-energy'`;
+    const [{ id }] =
+      await sql`insert into public.calorie_recommendations (user_id, algorithm_version_id, decision, previous_target_kcal, recommended_target_kcal, quality, explanation)
                                values (${alice}, ${alg}, 'adjust', 2200, 2050, '{}', '{}') returning id`;
-    await asUser(alice, (tx) => tx`update public.calorie_recommendations set status = 'accepted', decided_at = now() where id = ${id}`);
+    await asUser(
+      alice,
+      (tx) =>
+        tx`update public.calorie_recommendations set status = 'accepted', decided_at = now() where id = ${id}`,
+    );
     await expect(
-      asUser(alice, (tx) => tx`update public.calorie_recommendations set recommended_target_kcal = 900 where id = ${id}`),
+      asUser(
+        alice,
+        (tx) =>
+          tx`update public.calorie_recommendations set recommended_target_kcal = 900 where id = ${id}`,
+      ),
     ).rejects.toThrow(/permission denied/);
   });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { useForm, type FieldPath } from "react-hook-form";
+import { useForm, useWatch, type FieldPath } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,17 +15,56 @@ import { formatInt } from "@/lib/format";
 import { parseDanishNumber } from "@/lib/format";
 import type { ActionResult } from "@/lib/validation/common";
 import { profileSchema, type ProfileData, type ProfileInput } from "./schema";
-import { ACTIVITY_LABELS, ALLERGENS, DIET_LABELS, GOAL_LABELS, SEX_LABELS, SKILL_LABELS } from "./constants";
+import {
+  ACTIVITY_LABELS,
+  ALLERGENS,
+  DIET_LABELS,
+  GOAL_LABELS,
+  SEX_LABELS,
+  SKILL_LABELS,
+} from "./constants";
 import { saveOnboardingAction, updateProfileAction } from "./actions";
 
 type Mode = "wizard" | "edit";
 
 const STEPS: { title: string; fields: FieldPath<ProfileInput>[] }[] = [
   { title: "Om dig", fields: ["displayName", "birthYear", "sex", "heightCm", "weightKg"] },
-  { title: "Dit mål", fields: ["goal", "goalWeightKg", "weeklyRatePercent", "targetBodyFatPercent", "activityLevel", "trainingDaysPerWeek"] },
-  { title: "Kost og allergier", fields: ["diet", "allergens", "excludedIngredients", "dislikedIngredients"] },
-  { title: "Hverdag og budget", fields: ["mealsPerDay", "maxCookingMinutes", "cookingSkill", "householdSize", "weeklyBudgetKr", "postalCode"] },
-  { title: "Kalorier og makroer", fields: ["allowCalorieEstimate", "customEnergyKcal", "customProteinG", "customCarbohydrateG", "customFatG"] },
+  {
+    title: "Dit mål",
+    fields: [
+      "goal",
+      "goalWeightKg",
+      "weeklyRatePercent",
+      "targetBodyFatPercent",
+      "activityLevel",
+      "trainingDaysPerWeek",
+    ],
+  },
+  {
+    title: "Kost og allergier",
+    fields: ["diet", "allergens", "excludedIngredients", "dislikedIngredients"],
+  },
+  {
+    title: "Hverdag og budget",
+    fields: [
+      "mealsPerDay",
+      "maxCookingMinutes",
+      "cookingSkill",
+      "householdSize",
+      "weeklyBudgetKr",
+      "postalCode",
+    ],
+  },
+  {
+    title: "Kalorier og makroer",
+    fields: [
+      "allowCalorieEstimate",
+      "customEnergyKcal",
+      "customProteinG",
+      "customCarbohydrateG",
+      "customFatG",
+    ],
+  },
 ];
 
 const num = (v: unknown) => {
@@ -56,11 +95,13 @@ export function ProfileForm({ mode, defaults }: { mode: Mode; defaults: Partial<
       ...defaults,
     },
   });
-  const { register, watch, formState, trigger, handleSubmit } = form;
+  const { register, control, formState, trigger, handleSubmit } = form;
   const errors = formState.errors as Record<string, { message?: string } | undefined>;
-  const e = (k: string) => errors[k]?.message ?? (serverState && !serverState.ok ? serverState.fieldErrors?.[k]?.[0] : undefined);
+  const e = (k: string) =>
+    errors[k]?.message ??
+    (serverState && !serverState.ok ? serverState.fieldErrors?.[k]?.[0] : undefined);
 
-  const values = watch();
+  const values = useWatch({ control }) as ProfileInput;
   const goal = values.goal;
   const estimate = useMemo(() => {
     const birthYear = num(values.birthYear);
@@ -80,13 +121,24 @@ export function ProfileForm({ mode, defaults }: { mode: Mode; defaults: Partial<
     } catch {
       return null;
     }
-  }, [values.birthYear, values.heightCm, values.weightKg, values.sex, values.activityLevel, values.goal, values.weeklyRatePercent]);
+  }, [
+    values.birthYear,
+    values.heightCm,
+    values.weightKg,
+    values.sex,
+    values.activityLevel,
+    values.goal,
+    values.weeklyRatePercent,
+  ]);
 
   const submit = handleSubmit((data) => {
     void data;
     startTransition(async () => {
       const raw = form.getValues();
-      const res = mode === "wizard" ? await saveOnboardingAction(raw) : await updateProfileAction(raw, recalculate);
+      const res =
+        mode === "wizard"
+          ? await saveOnboardingAction(raw)
+          : await updateProfileAction(raw, recalculate);
       setServerState(res);
     });
   });
@@ -107,7 +159,10 @@ export function ProfileForm({ mode, defaults }: { mode: Mode; defaults: Partial<
       {mode === "wizard" ? (
         <ol className="flex gap-1.5" aria-label="Trin">
           {STEPS.map((s, i) => (
-            <li key={s.title} className={`h-1.5 flex-1 rounded-full ${i <= step ? "bg-primary" : "bg-muted"}`}>
+            <li
+              key={s.title}
+              className={`h-1.5 flex-1 rounded-full ${i <= step ? "bg-primary" : "bg-muted"}`}
+            >
               <span className="sr-only">
                 Trin {i + 1}: {s.title}
                 {i === step ? " (aktuelt)" : ""}
@@ -135,7 +190,12 @@ export function ProfileForm({ mode, defaults }: { mode: Mode; defaults: Partial<
             <Input autoComplete="given-name" {...register("displayName")} />
           </FormField>
           <div className="grid grid-cols-2 gap-4">
-            <FormField id="birthYear" label="Fødselsår" error={e("birthYear")} hint="Vi gemmer kun året.">
+            <FormField
+              id="birthYear"
+              label="Fødselsår"
+              error={e("birthYear")}
+              hint="Vi gemmer kun året."
+            >
               <Input inputMode="numeric" autoComplete="bday-year" {...register("birthYear")} />
             </FormField>
             <FormField id="sex" label="Køn til beregning" error={e("sex")}>
@@ -154,9 +214,10 @@ export function ProfileForm({ mode, defaults }: { mode: Mode; defaults: Partial<
               <Input inputMode="decimal" {...register("weightKg")} />
             </FormField>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Køn bruges kun i energiligningen (Mifflin-St Jeor), fordi den har forskellige konstanter. Vælger du ikke at
-            oplyse det, bruger vi et gennemsnit, og estimatet bliver mere usikkert.
+          <p className="text-muted-foreground text-xs">
+            Køn bruges kun i energiligningen (Mifflin-St Jeor), fordi den har forskellige
+            konstanter. Vælger du ikke at oplyse det, bruger vi et gennemsnit, og estimatet bliver
+            mere usikkert.
           </p>
         </fieldset>
       )}
@@ -166,11 +227,19 @@ export function ProfileForm({ mode, defaults }: { mode: Mode; defaults: Partial<
           <legend className="mb-2 text-lg font-semibold">{STEPS[1].title}</legend>
           <div className="grid gap-2" role="radiogroup" aria-label="Primært mål">
             {Object.entries(GOAL_LABELS).map(([v, [label, desc]]) => (
-              <label key={v} className="flex cursor-pointer items-start gap-3 rounded-lg border bg-card p-3 has-[:checked]:border-primary has-[:checked]:bg-accent">
-                <input type="radio" value={v} {...register("goal")} className="mt-1 size-4 accent-primary" />
+              <label
+                key={v}
+                className="bg-card has-[:checked]:border-primary has-[:checked]:bg-accent flex cursor-pointer items-start gap-3 rounded-lg border p-3"
+              >
+                <input
+                  type="radio"
+                  value={v}
+                  {...register("goal")}
+                  className="accent-primary mt-1 size-4"
+                />
                 <span>
                   <span className="font-medium">{label}</span>
-                  <span className="block text-sm text-muted-foreground">{desc}</span>
+                  <span className="text-muted-foreground block text-sm">{desc}</span>
                 </span>
               </label>
             ))}
@@ -179,7 +248,12 @@ export function ProfileForm({ mode, defaults }: { mode: Mode; defaults: Partial<
             <FormField id="goalWeightKg" label="Målvægt (kg)" optional error={e("goalWeightKg")}>
               <Input inputMode="decimal" {...register("goalWeightKg")} />
             </FormField>
-            <FormField id="targetBodyFatPercent" label="Mål for fedtprocent" optional error={e("targetBodyFatPercent")}>
+            <FormField
+              id="targetBodyFatPercent"
+              label="Mål for fedtprocent"
+              optional
+              error={e("targetBodyFatPercent")}
+            >
               <Input inputMode="decimal" {...register("targetBodyFatPercent")} />
             </FormField>
           </div>
@@ -191,7 +265,11 @@ export function ProfileForm({ mode, defaults }: { mode: Mode; defaults: Partial<
               error={e("weeklyRatePercent")}
               hint={`Mellem ${String(rate.min).replace(".", ",")} og ${String(rate.max).replace(".", ",")} %. Standard er ${String(rate.default).replace(".", ",")} %.`}
             >
-              <Input inputMode="decimal" placeholder={String(rate.default).replace(".", ",")} {...register("weeklyRatePercent")} />
+              <Input
+                inputMode="decimal"
+                placeholder={String(rate.default).replace(".", ",")}
+                {...register("weeklyRatePercent")}
+              />
             </FormField>
           ) : null}
           <FormField id="activityLevel" label="Aktivitetsniveau" error={e("activityLevel")}>
@@ -203,7 +281,11 @@ export function ProfileForm({ mode, defaults }: { mode: Mode; defaults: Partial<
               ))}
             </NativeSelect>
           </FormField>
-          <FormField id="trainingDaysPerWeek" label="Træningspas pr. uge" error={e("trainingDaysPerWeek")}>
+          <FormField
+            id="trainingDaysPerWeek"
+            label="Træningspas pr. uge"
+            error={e("trainingDaysPerWeek")}
+          >
             <Input inputMode="numeric" {...register("trainingDaysPerWeek")} />
           </FormField>
         </fieldset>
@@ -223,22 +305,43 @@ export function ProfileForm({ mode, defaults }: { mode: Mode; defaults: Partial<
           </FormField>
           <fieldset className="grid gap-2">
             <legend className="text-sm font-medium">Allergier og intolerancer</legend>
-            <p className="text-xs text-muted-foreground">
-              Allergier er absolutte krav. Vi foreslår aldrig opskrifter eller varer, der indeholder dem.
+            <p className="text-muted-foreground text-xs">
+              Allergier er absolutte krav. Vi foreslår aldrig opskrifter eller varer, der indeholder
+              dem.
             </p>
             <div className="grid grid-cols-2 gap-2">
               {ALLERGENS.map(([code, label]) => (
-                <label key={code} className="flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm has-[:checked]:border-primary">
-                  <input type="checkbox" value={code} {...register("allergens")} className="size-4 accent-primary" />
+                <label
+                  key={code}
+                  className="bg-card has-[:checked]:border-primary flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    value={code}
+                    {...register("allergens")}
+                    className="accent-primary size-4"
+                  />
                   {label}
                 </label>
               ))}
             </div>
           </fieldset>
-          <FormField id="excludedIngredients" label="Ingredienser du aldrig vil have" optional hint="Adskil med komma, fx: svinekød, rejer" error={e("excludedIngredients")}>
+          <FormField
+            id="excludedIngredients"
+            label="Ingredienser du aldrig vil have"
+            optional
+            hint="Adskil med komma, fx: svinekød, rejer"
+            error={e("excludedIngredients")}
+          >
             <Textarea rows={2} {...register("excludedIngredients")} />
           </FormField>
-          <FormField id="dislikedIngredients" label="Ingredienser du helst undgår" optional hint="Vi undgår dem, når der er alternativer." error={e("dislikedIngredients")}>
+          <FormField
+            id="dislikedIngredients"
+            label="Ingredienser du helst undgår"
+            optional
+            hint="Vi undgår dem, når der er alternativer."
+            error={e("dislikedIngredients")}
+          >
             <Textarea rows={2} {...register("dislikedIngredients")} />
           </FormField>
         </fieldset>
@@ -260,7 +363,12 @@ export function ProfileForm({ mode, defaults }: { mode: Mode; defaults: Partial<
             <FormField id="householdSize" label="Personer i husstanden" error={e("householdSize")}>
               <Input inputMode="numeric" {...register("householdSize")} />
             </FormField>
-            <FormField id="maxCookingMinutes" label="Maks. tid pr. måltid (min)" optional error={e("maxCookingMinutes")}>
+            <FormField
+              id="maxCookingMinutes"
+              label="Maks. tid pr. måltid (min)"
+              optional
+              error={e("maxCookingMinutes")}
+            >
               <Input inputMode="numeric" {...register("maxCookingMinutes")} />
             </FormField>
             <FormField id="cookingSkill" label="Erfaring i køkkenet" error={e("cookingSkill")}>
@@ -272,11 +380,27 @@ export function ProfileForm({ mode, defaults }: { mode: Mode; defaults: Partial<
                 ))}
               </NativeSelect>
             </FormField>
-            <FormField id="weeklyBudgetKr" label="Ugebudget til mad (kr.)" optional error={e("weeklyBudgetKr")}>
+            <FormField
+              id="weeklyBudgetKr"
+              label="Ugebudget til mad (kr.)"
+              optional
+              error={e("weeklyBudgetKr")}
+            >
               <Input inputMode="decimal" {...register("weeklyBudgetKr")} />
             </FormField>
-            <FormField id="postalCode" label="Postnummer" optional hint="Bruges til at finde butikker nær dig." error={e("postalCode")}>
-              <Input inputMode="numeric" autoComplete="postal-code" maxLength={4} {...register("postalCode")} />
+            <FormField
+              id="postalCode"
+              label="Postnummer"
+              optional
+              hint="Bruges til at finde butikker nær dig."
+              error={e("postalCode")}
+            >
+              <Input
+                inputMode="numeric"
+                autoComplete="postal-code"
+                maxLength={4}
+                {...register("postalCode")}
+              />
             </FormField>
           </div>
         </fieldset>
@@ -285,27 +409,35 @@ export function ProfileForm({ mode, defaults }: { mode: Mode; defaults: Partial<
       {visible(4) && (
         <fieldset className="grid gap-4">
           <legend className="mb-2 text-lg font-semibold">{STEPS[4].title}</legend>
-          <label className="flex items-start gap-3 rounded-lg border bg-card p-3">
-            <input type="checkbox" {...register("allowCalorieEstimate")} className="mt-1 size-4 accent-primary" />
+          <label className="bg-card flex items-start gap-3 rounded-lg border p-3">
+            <input
+              type="checkbox"
+              {...register("allowCalorieEstimate")}
+              className="accent-primary mt-1 size-4"
+            />
             <span>
               <span className="font-medium">Beregn mit kalorie- og makromål for mig</span>
-              <span className="block text-sm text-muted-foreground">Fravælg, hvis du allerede har mål fra fx en diætist.</span>
+              <span className="text-muted-foreground block text-sm">
+                Fravælg, hvis du allerede har mål fra fx en diætist.
+              </span>
             </span>
           </label>
           {values.allowCalorieEstimate && estimate ? (
-            <div className="rounded-lg border bg-card p-4">
-              <p className="text-sm text-muted-foreground">Estimat ud fra dine oplysninger</p>
+            <div className="bg-card rounded-lg border p-4">
+              <p className="text-muted-foreground text-sm">Estimat ud fra dine oplysninger</p>
               <p className="mt-1 text-3xl font-semibold">{formatInt(estimate.targetKcal)} kcal</p>
               <p className="mt-1 text-sm">
-                Protein {estimate.macros.proteinG} g · Kulhydrat {estimate.macros.carbohydrateG} g · Fedt {estimate.macros.fatG} g
+                Protein {estimate.macros.proteinG} g · Kulhydrat {estimate.macros.carbohydrateG} g ·
+                Fedt {estimate.macros.fatG} g
               </p>
-              <p className="mt-3 text-xs text-muted-foreground">
-                Hvilestofskifte (Mifflin-St Jeor) {formatInt(estimate.bmrKcal)} kcal × aktivitetsfaktor = forbrug ca.{" "}
-                {formatInt(estimate.tdeeKcal)} kcal. Justering for dit mål: {estimate.appliedDeltaKcal > 0 ? "+" : ""}
+              <p className="text-muted-foreground mt-3 text-xs">
+                Hvilestofskifte (Mifflin-St Jeor) {formatInt(estimate.bmrKcal)} kcal ×
+                aktivitetsfaktor = forbrug ca. {formatInt(estimate.tdeeKcal)} kcal. Justering for
+                dit mål: {estimate.appliedDeltaKcal > 0 ? "+" : ""}
                 {formatInt(estimate.appliedDeltaKcal)} kcal. Det er et estimat, ikke en måling.
               </p>
               {estimate.notes.length > 0 ? (
-                <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                <ul className="text-muted-foreground mt-3 list-disc space-y-1 pl-5 text-xs">
                   {estimate.notes.map((n, i) => (
                     <li key={i}>{describeNote(n)}</li>
                   ))}
@@ -315,13 +447,27 @@ export function ProfileForm({ mode, defaults }: { mode: Mode; defaults: Partial<
           ) : null}
           {!values.allowCalorieEstimate ? (
             <div className="grid grid-cols-2 gap-4">
-              <FormField id="customEnergyKcal" label="Kalorier pr. dag" error={e("customEnergyKcal")}>
+              <FormField
+                id="customEnergyKcal"
+                label="Kalorier pr. dag"
+                error={e("customEnergyKcal")}
+              >
                 <Input inputMode="numeric" {...register("customEnergyKcal")} />
               </FormField>
-              <FormField id="customProteinG" label="Protein (g)" optional error={e("customProteinG")}>
+              <FormField
+                id="customProteinG"
+                label="Protein (g)"
+                optional
+                error={e("customProteinG")}
+              >
                 <Input inputMode="numeric" {...register("customProteinG")} />
               </FormField>
-              <FormField id="customCarbohydrateG" label="Kulhydrat (g)" optional error={e("customCarbohydrateG")}>
+              <FormField
+                id="customCarbohydrateG"
+                label="Kulhydrat (g)"
+                optional
+                error={e("customCarbohydrateG")}
+              >
                 <Input inputMode="numeric" {...register("customCarbohydrateG")} />
               </FormField>
               <FormField id="customFatG" label="Fedt (g)" optional error={e("customFatG")}>
@@ -332,13 +478,18 @@ export function ProfileForm({ mode, defaults }: { mode: Mode; defaults: Partial<
           <Alert variant="info">
             <Info aria-hidden />
             <AlertDescription>
-              Madro giver generelle estimater, ikke medicinsk rådgivning. Er du gravid, ammer, har en spiseforstyrrelse
-              eller en sygdom, så tal med din læge eller en klinisk diætist.
+              Madro giver generelle estimater, ikke medicinsk rådgivning. Er du gravid, ammer, har
+              en spiseforstyrrelse eller en sygdom, så tal med din læge eller en klinisk diætist.
             </AlertDescription>
           </Alert>
           {mode === "edit" ? (
             <label className="flex items-center gap-3 text-sm">
-              <input type="checkbox" checked={recalculate} onChange={(ev) => setRecalculate(ev.target.checked)} className="size-4 accent-primary" />
+              <input
+                type="checkbox"
+                checked={recalculate}
+                onChange={(ev) => setRecalculate(ev.target.checked)}
+                className="accent-primary size-4"
+              />
               Beregn mine mål igen ud fra de nye oplysninger
             </label>
           ) : null}

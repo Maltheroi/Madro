@@ -112,12 +112,14 @@ export function effectivePrice(
     b.observedAt.localeCompare(a.observedAt);
 
   const regular = relevant.filter((o) => o.priceType !== "promotional").sort(sortFn)[0];
-  const promo = relevant
-    .filter((o) => o.priceType === "promotional")
-    .sort(sortFn)[0];
+  const promo = relevant.filter((o) => o.priceType === "promotional").sort(sortFn)[0];
 
   if (promo && (!regular || promo.priceOre < regular.priceOre)) {
-    return { observation: promo, status: priceStatus(promo, now), regularPriceOre: regular?.priceOre ?? null };
+    return {
+      observation: promo,
+      status: priceStatus(promo, now),
+      regularPriceOre: regular?.priceOre ?? null,
+    };
   }
   if (!regular) return null;
   return { observation: regular, status: priceStatus(regular, now), regularPriceOre: null };

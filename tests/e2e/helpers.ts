@@ -7,7 +7,10 @@ export function uniqueEmail(prefix = "e2e") {
 }
 
 /** Sign up and complete onboarding. Requires a local stack with email autoconfirm. */
-export async function signUpAndOnboard(page: Page, opts: { allergies?: string[]; budgetKr?: string } = {}) {
+export async function signUpAndOnboard(
+  page: Page,
+  opts: { allergies?: string[]; budgetKr?: string } = {},
+) {
   const email = uniqueEmail();
   await page.goto("/opret-konto");
   await page.getByLabel("E-mail").fill(email);

@@ -42,13 +42,15 @@ export default function LandingPage() {
       </header>
       <main id="indhold">
         <section className="mx-auto max-w-5xl px-4 pt-10 pb-16 md:pt-20">
-          <p className="text-sm font-medium tracking-wide text-primary uppercase">Madplan · makroer · indkøb</p>
+          <p className="text-primary text-sm font-medium tracking-wide uppercase">
+            Madplan · makroer · indkøb
+          </p>
           <h1 className="mt-3 max-w-2xl text-4xl leading-tight font-semibold tracking-tight md:text-5xl">
             Spis efter dine mål. Handl efter dit budget.
           </h1>
-          <p className="mt-5 max-w-xl text-lg text-muted-foreground">
-            Sæt dine ernæringsmål og dit ugentlige madbudget. Få en personlig madplan, den bedste enkelte butik til din
-            kurv og en indkøbsliste med gennemsigtige priser.
+          <p className="text-muted-foreground mt-5 max-w-xl text-lg">
+            Sæt dine ernæringsmål og dit ugentlige madbudget. Få en personlig madplan, den bedste
+            enkelte butik til din kurv og en indkøbsliste med gennemsigtige priser.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Button asChild size="lg">
@@ -61,7 +63,7 @@ export default function LandingPage() {
             </Button>
           </div>
         </section>
-        <section aria-labelledby="funktioner" className="border-t bg-card">
+        <section aria-labelledby="funktioner" className="bg-card border-t">
           <div className="mx-auto max-w-5xl px-4 py-14">
             <h2 id="funktioner" className="sr-only">
               Funktioner
@@ -69,29 +71,30 @@ export default function LandingPage() {
             <ul className="grid gap-8 md:grid-cols-2">
               {features.map(({ icon: Icon, title, body }) => (
                 <li key={title} className="flex gap-4">
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
+                  <span className="bg-accent text-accent-foreground flex size-10 shrink-0 items-center justify-center rounded-full">
                     <Icon aria-hidden className="size-5" />
                   </span>
                   <div>
                     <h3 className="font-semibold">{title}</h3>
-                    <p className="mt-1 text-muted-foreground">{body}</p>
+                    <p className="text-muted-foreground mt-1">{body}</p>
                   </div>
                 </li>
               ))}
             </ul>
           </div>
         </section>
-        <section className="mx-auto max-w-5xl px-4 py-12 text-sm text-muted-foreground">
-          <h2 className="font-medium text-foreground">Ærlige data</h2>
+        <section className="text-muted-foreground mx-auto max-w-5xl px-4 py-12 text-sm">
+          <h2 className="text-foreground font-medium">Ærlige data</h2>
           <p className="mt-2 max-w-2xl">
-            Madro er i udvikling. Priser fra butikker vises kun, når vi har adgang til dem fra en godkendt kilde, og
-            hver pris er mærket som aktuel, forældet, estimeret eller syntetisk testdata. Kalorieberegninger er estimater,
-            ikke målinger, og erstatter ikke rådgivning fra en læge eller klinisk diætist.
+            Madro er i udvikling. Priser fra butikker vises kun, når vi har adgang til dem fra en
+            godkendt kilde, og hver pris er mærket som aktuel, forældet, estimeret eller syntetisk
+            testdata. Kalorieberegninger er estimater, ikke målinger, og erstatter ikke rådgivning
+            fra en læge eller klinisk diætist.
           </p>
         </section>
       </main>
       <footer className="border-t">
-        <div className="mx-auto flex max-w-5xl flex-wrap gap-4 px-4 py-6 text-sm text-muted-foreground">
+        <div className="text-muted-foreground mx-auto flex max-w-5xl flex-wrap gap-4 px-4 py-6 text-sm">
           <span>© {new Date().getFullYear()} Madro</span>
           <Link href="/privatlivspolitik" className="underline-offset-4 hover:underline">
             Privatlivspolitik

@@ -9,8 +9,8 @@ export default function SetupPage() {
     <AuthShell title="Opsætning mangler" subtitle="Appen er ikke forbundet til en database endnu.">
       <div className="space-y-3 text-sm">
         <p>
-          Sæt miljøvariablerne fra <code>.env.example</code> (Supabase-URL, publishable key og DATABASE_URL), og
-          genstart serveren. Se <code>docs/LOCAL_DEVELOPMENT.md</code>.
+          Sæt miljøvariablerne fra <code>.env.example</code> (Supabase-URL, publishable key og
+          DATABASE_URL), og genstart serveren. Se <code>docs/LOCAL_DEVELOPMENT.md</code>.
         </p>
       </div>
     </AuthShell>

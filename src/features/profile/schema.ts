@@ -54,13 +54,25 @@ export const profileSchema = z
   })
   .superRefine((v, ctx) => {
     if (!v.allowCalorieEstimate && v.customEnergyKcal === undefined) {
-      ctx.addIssue({ code: "custom", path: ["customEnergyKcal"], message: "Angiv dit eget kaloriemål, eller lad os estimere det." });
+      ctx.addIssue({
+        code: "custom",
+        path: ["customEnergyKcal"],
+        message: "Angiv dit eget kaloriemål, eller lad os estimere det.",
+      });
     }
     if (v.goal === "fat_loss" && v.goalWeightKg !== undefined && v.goalWeightKg >= v.weightKg) {
-      ctx.addIssue({ code: "custom", path: ["goalWeightKg"], message: "Målvægten skal være lavere end din nuværende vægt, når målet er fedttab." });
+      ctx.addIssue({
+        code: "custom",
+        path: ["goalWeightKg"],
+        message: "Målvægten skal være lavere end din nuværende vægt, når målet er fedttab.",
+      });
     }
     if (v.goal === "muscle_gain" && v.goalWeightKg !== undefined && v.goalWeightKg <= v.weightKg) {
-      ctx.addIssue({ code: "custom", path: ["goalWeightKg"], message: "Målvægten skal være højere end din nuværende vægt, når målet er muskelopbygning." });
+      ctx.addIssue({
+        code: "custom",
+        path: ["goalWeightKg"],
+        message: "Målvægten skal være højere end din nuværende vægt, når målet er muskelopbygning.",
+      });
     }
   });
 

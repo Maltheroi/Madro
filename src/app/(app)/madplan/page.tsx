@@ -46,8 +46,9 @@ export default async function MealPlanPage() {
           <CardHeader>
             <CardTitle>Ingen madplan for denne uge endnu</CardTitle>
             <CardDescription>
-              Vi vælger opskrifter efter dit mål på {formatInt(goal.energyKcal)} kcal og {goal.proteinG} g protein,
-              dine allergier, din kost og den tid, du har. Du kan låse, udskifte og skalere måltider bagefter.
+              Vi vælger opskrifter efter dit mål på {formatInt(goal.energyKcal)} kcal og{" "}
+              {goal.proteinG} g protein, dine allergier, din kost og den tid, du har. Du kan låse,
+              udskifte og skalere måltider bagefter.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -99,8 +100,15 @@ export default async function MealPlanPage() {
             timeMinutes: r.prepMinutes + r.cookMinutes,
             alternatives: allowed
               .filter((a) => a.id !== r.id && a.mealTypes.includes(m.slot))
-              .sort((a, b) => Number(favoriteIds.includes(b.id)) - Number(favoriteIds.includes(a.id)) || a.name.localeCompare(b.name, "da"))
-              .map((a) => ({ id: a.id, name: favoriteIds.includes(a.id) ? `★ ${a.name}` : a.name })),
+              .sort(
+                (a, b) =>
+                  Number(favoriteIds.includes(b.id)) - Number(favoriteIds.includes(a.id)) ||
+                  a.name.localeCompare(b.name, "da"),
+              )
+              .map((a) => ({
+                id: a.id,
+                name: favoriteIds.includes(a.id) ? `★ ${a.name}` : a.name,
+              })),
           };
         }),
     };

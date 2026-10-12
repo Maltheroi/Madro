@@ -13,7 +13,13 @@ http
       return;
     }
     const upstream = http.request(
-      { host: "127.0.0.1", port: authPort, path: req.url.slice("/auth/v1".length) || "/", method: req.method, headers: req.headers },
+      {
+        host: "127.0.0.1",
+        port: authPort,
+        path: req.url.slice("/auth/v1".length) || "/",
+        method: req.method,
+        headers: req.headers,
+      },
       (up) => {
         res.writeHead(up.statusCode ?? 502, up.headers);
         up.pipe(res);

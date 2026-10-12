@@ -13,9 +13,19 @@
  * optimal for the stated scoring rule and the available price data, nothing more.
  */
 
-import { convert, type ConversionData, type Dimension, type Unit } from "@/features/nutrition/domain/units";
+import {
+  convert,
+  type ConversionData,
+  type Dimension,
+  type Unit,
+} from "@/features/nutrition/domain/units";
 import type { RequiredItem } from "@/features/shopping-list/domain/consolidate";
-import { effectivePrice, type PriceObservation, type PriceStatus, type PriceType } from "@/features/grocery-pricing/domain/prices";
+import {
+  effectivePrice,
+  type PriceObservation,
+  type PriceStatus,
+  type PriceType,
+} from "@/features/grocery-pricing/domain/prices";
 
 export const BASKET_OPTIMIZER_ALGORITHM = { key: "basket-optimizer", version: "1.0.0" } as const;
 
@@ -137,7 +147,11 @@ export interface OptimizeResult {
   explanation: string[];
 }
 
-const QUALITY_PENALTY: Record<MatchQuality, number> = { exact: 0, equivalent: 0.02, substitute: 0.08 };
+const QUALITY_PENALTY: Record<MatchQuality, number> = {
+  exact: 0,
+  equivalent: 0.02,
+  substitute: 0.08,
+};
 const EPS = 1e-9;
 
 /** Packages needed: ceil(q / p) with tolerance for floating-point noise. */
@@ -171,7 +185,12 @@ function basketForStore(input: OptimizeInput, store: Store): StoreBasket {
         (input.allowSubstitutes || m.quality !== "substitute"),
     );
     if (matches.length === 0) {
-      unmatched.push({ ingredientId: item.ingredientId, ingredientName: item.name, required: item.required, reason: "no_product" });
+      unmatched.push({
+        ingredientId: item.ingredientId,
+        ingredientName: item.name,
+        required: item.required,
+        reason: "no_product",
+      });
       continue;
     }
     let best: { line: BasketLine; score: number } | null = null;
@@ -182,12 +201,23 @@ function basketForStore(input: OptimizeInput, store: Store): StoreBasket {
         continue;
       }
       const product = productMap.get(m.productId)!;
-      const packageInBase = convert(product.packageQuantity, product.packageUnit, baseUnitFor(item.dimension), meta ?? {});
+      const packageInBase = convert(
+        product.packageQuantity,
+        product.packageUnit,
+        baseUnitFor(item.dimension),
+        meta ?? {},
+      );
       if (packageInBase === null || packageInBase <= 0) {
         reason = "incompatible_unit";
         continue;
       }
-      const price = effectivePrice(input.observations, product.id, store.id, store.retailerId, input.now);
+      const price = effectivePrice(
+        input.observations,
+        product.id,
+        store.id,
+        store.retailerId,
+        input.now,
+      );
       if (!price) continue;
       const packages = packagesNeeded(item.toBuy, packageInBase);
       const cost = packages * price.observation.priceOre;
@@ -226,7 +256,11 @@ function basketForStore(input: OptimizeInput, store: Store): StoreBasket {
         priceObservationId: price.observation.id,
         sourceKey: price.observation.sourceKey,
       };
-      if (!best || score < best.score - EPS || (Math.abs(score - best.score) <= EPS && product.id < best.line.productId)) {
+      if (
+        !best ||
+        score < best.score - EPS ||
+        (Math.abs(score - best.score) <= EPS && product.id < best.line.productId)
+      ) {
         best = { line, score };
       }
     }
@@ -234,7 +268,12 @@ function basketForStore(input: OptimizeInput, store: Store): StoreBasket {
       lines.push(best.line);
       statusCounts[best.line.priceStatus]++;
     } else {
-      unmatched.push({ ingredientId: item.ingredientId, ingredientName: item.name, required: item.required, reason });
+      unmatched.push({
+        ingredientId: item.ingredientId,
+        ingredientName: item.name,
+        required: item.required,
+        reason,
+      });
     }
   }
 
@@ -246,7 +285,10 @@ function basketForStore(input: OptimizeInput, store: Store): StoreBasket {
   const complete = requiredMissing === 0;
   const withinBudget = input.budgetOre === null ? null : checkout <= input.budgetOre;
   // Incomplete baskets are ranked after complete ones; their score is informative only.
-  const qualityPenalty = lines.reduce((a, l) => a + l.lineCostOre * QUALITY_PENALTY[l.matchQuality], 0);
+  const qualityPenalty = lines.reduce(
+    (a, l) => a + l.lineCostOre * QUALITY_PENALTY[l.matchQuality],
+    0,
+  );
   const score = input.mode === "best_value" ? checkout + 0.5 * waste + qualityPenalty : checkout;
 
   return {
@@ -287,22 +329,34 @@ export function optimizeBasket(input: OptimizeInput): OptimizeResult {
     const feasible = complete.filter((b) => b.checkoutTotalOre <= input.budgetOre!);
     recommended = feasible.sort((a, b) => a.checkoutTotalOre - b.checkoutTotalOre)[0] ?? null;
     if (!recommended) {
-      const cheapest = [...complete].sort((a, b) => a.checkoutTotalOre - b.checkoutTotalOre)[0] ?? null;
+      const cheapest =
+        [...complete].sort((a, b) => a.checkoutTotalOre - b.checkoutTotalOre)[0] ?? null;
       const shortfall = cheapest ? cheapest.checkoutTotalOre - input.budgetOre : 0;
       const suggestions: string[] = [];
       if (cheapest) {
-        const optional = cheapest.lines.filter((l) => !l.required).reduce((a, l) => a + l.lineCostOre, 0);
+        const optional = cheapest.lines
+          .filter((l) => !l.required)
+          .reduce((a, l) => a + l.lineCostOre, 0);
         if (optional > 0) suggestions.push(`Fjern valgfrie varer (sparer ${kr(optional)}).`);
         const top = [...cheapest.lines].sort((a, b) => b.lineCostOre - a.lineCostOre).slice(0, 3);
         if (top.length) {
-          suggestions.push(`De dyreste linjer er ${top.map((l) => `${l.ingredientName} (${kr(l.lineCostOre)})`).join(", ")}. Overvej at udskifte måltider med disse ingredienser.`);
+          suggestions.push(
+            `De dyreste linjer er ${top.map((l) => `${l.ingredientName} (${kr(l.lineCostOre)})`).join(", ")}. Overvej at udskifte måltider med disse ingredienser.`,
+          );
         }
-        if (!input.allowSubstitutes) suggestions.push("Tillad erstatningsvarer for at finde billigere alternativer.");
+        if (!input.allowSubstitutes)
+          suggestions.push("Tillad erstatningsvarer for at finde billigere alternativer.");
         suggestions.push(`Hæv budgettet med ${kr(shortfall)} eller gentag billigere måltider.`);
       } else {
-        suggestions.push("Ingen butik kan levere alle nødvendige varer. Se de manglende varer nedenfor.");
+        suggestions.push(
+          "Ingen butik kan levere alle nødvendige varer. Se de manglende varer nedenfor.",
+        );
       }
-      budget = { cheapestCompleteStoreId: cheapest?.store.id ?? null, shortfallOre: Math.max(0, shortfall), suggestions };
+      budget = {
+        cheapestCompleteStoreId: cheapest?.store.id ?? null,
+        shortfallOre: Math.max(0, shortfall),
+        suggestions,
+      };
       explanation.push(
         cheapest
           ? `Ingen komplet kurv holder sig inden for budgettet på ${kr(input.budgetOre)}. Den billigste komplette kurv (${cheapest.store.name}) mangler ${kr(shortfall)}.`
@@ -318,18 +372,28 @@ export function optimizeBasket(input: OptimizeInput): OptimizeResult {
       `${recommended.store.name} har den ${input.mode === "best_value" ? "bedste samlede værdi" : "laveste pris"} for hele kurven: ${kr(recommended.checkoutTotalOre)} ved kassen.`,
     );
     if (recommended.likelyWasteValueOre > 0) {
-      explanation.push(`Omkring ${kr(recommended.likelyWasteValueOre)} af kurven er rester af letfordærvelige varer, som planen ikke bruger.`);
+      explanation.push(
+        `Omkring ${kr(recommended.likelyWasteValueOre)} af kurven er rester af letfordærvelige varer, som planen ikke bruger.`,
+      );
     }
     const s = recommended.statusCounts;
-    if (s.synthetic > 0) explanation.push(`${s.synthetic} priser er syntetiske testdata og ikke rigtige butikspriser.`);
+    if (s.synthetic > 0)
+      explanation.push(
+        `${s.synthetic} priser er syntetiske testdata og ikke rigtige butikspriser.`,
+      );
     if (s.stale > 0) explanation.push(`${s.stale} priser er forældede og kun vejledende.`);
-    if (s.estimated > 0) explanation.push(`${s.estimated} priser er indtastet manuelt og ikke verificeret.`);
+    if (s.estimated > 0)
+      explanation.push(`${s.estimated} priser er indtastet manuelt og ikke verificeret.`);
     const optionalMissing = recommended.unmatched.filter((u) => !u.required);
-    if (optionalMissing.length) explanation.push(`${optionalMissing.length} valgfrie varer findes ikke i butikken.`);
+    if (optionalMissing.length)
+      explanation.push(`${optionalMissing.length} valgfrie varer findes ikke i butikken.`);
   } else if (complete.length === 0 && baskets.length > 0) {
     const best = baskets[0];
     explanation.push(
-      `Ingen butik kan levere hele kurven. ${best.store.name} dækker flest varer (${Math.round(best.coverage * 100)} %). Mangler: ${best.unmatched.filter((u) => u.required).map((u) => u.ingredientName).join(", ")}.`,
+      `Ingen butik kan levere hele kurven. ${best.store.name} dækker flest varer (${Math.round(best.coverage * 100)} %). Mangler: ${best.unmatched
+        .filter((u) => u.required)
+        .map((u) => u.ingredientName)
+        .join(", ")}.`,
     );
   }
 
@@ -338,11 +402,26 @@ export function optimizeBasket(input: OptimizeInput): OptimizeResult {
     const next = complete.find((b) => b.store.id !== recommended!.store.id);
     if (next && next.checkoutTotalOre > recommended.checkoutTotalOre) {
       const verified = [recommended, next].every(
-        (b) => b.statusCounts.synthetic === 0 && b.statusCounts.stale === 0 && b.statusCounts.estimated === 0,
+        (b) =>
+          b.statusCounts.synthetic === 0 &&
+          b.statusCounts.stale === 0 &&
+          b.statusCounts.estimated === 0,
       );
-      savings = { againstStoreId: next.store.id, amountOre: next.checkoutTotalOre - recommended.checkoutTotalOre, verified };
+      savings = {
+        againstStoreId: next.store.id,
+        amountOre: next.checkoutTotalOre - recommended.checkoutTotalOre,
+        verified,
+      };
     }
   }
 
-  return { algorithm: BASKET_OPTIMIZER_ALGORITHM, mode: input.mode, recommended, baskets, savings, budget, explanation };
+  return {
+    algorithm: BASKET_OPTIMIZER_ALGORITHM,
+    mode: input.mode,
+    recommended,
+    baskets,
+    savings,
+    budget,
+    explanation,
+  };
 }

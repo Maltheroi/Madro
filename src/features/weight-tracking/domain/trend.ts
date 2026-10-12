@@ -30,9 +30,12 @@ export interface TrendPoint {
 
 /** Calendar date in a time zone (default Europe/Copenhagen). */
 export function localDate(iso: string, timeZone = "Europe/Copenhagen"): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(
-    new Date(iso),
-  );
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso));
 }
 
 export function dailyWeights(weighIns: WeighIn[], timeZone?: string): DailyWeight[] {

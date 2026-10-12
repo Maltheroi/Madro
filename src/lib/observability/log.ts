@@ -11,6 +11,11 @@ export function logEvent(event: string, meta: Meta = {}): void {
 }
 
 export function logError(event: string, error: unknown, meta: Meta = {}): void {
-  const e = error instanceof Error ? { name: error.name, message: error.message } : { message: String(error) };
-  console.error(JSON.stringify({ level: "error", event, ...e, ...meta, ts: new Date().toISOString() }));
+  const e =
+    error instanceof Error
+      ? { name: error.name, message: error.message }
+      : { message: String(error) };
+  console.error(
+    JSON.stringify({ level: "error", event, ...e, ...meta, ts: new Date().toISOString() }),
+  );
 }

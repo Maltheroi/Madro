@@ -12,11 +12,29 @@ export default defineConfig({
     locale: "da-DK",
     timezoneId: "Europe/Copenhagen",
     // Allows using a preinstalled Chromium instead of downloading one.
-    launchOptions: process.env.PLAYWRIGHT_CHROMIUM_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH } : {},
+    launchOptions: process.env.PLAYWRIGHT_CHROMIUM_PATH
+      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH }
+      : {},
   },
   projects: [
-    { name: "mobile", use: { ...devices["Pixel 7"], launchOptions: process.env.PLAYWRIGHT_CHROMIUM_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH } : {} } },
-    { name: "desktop", use: { ...devices["Desktop Chrome"], launchOptions: process.env.PLAYWRIGHT_CHROMIUM_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH } : {} } },
+    {
+      name: "mobile",
+      use: {
+        ...devices["Pixel 7"],
+        launchOptions: process.env.PLAYWRIGHT_CHROMIUM_PATH
+          ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH }
+          : {},
+      },
+    },
+    {
+      name: "desktop",
+      use: {
+        ...devices["Desktop Chrome"],
+        launchOptions: process.env.PLAYWRIGHT_CHROMIUM_PATH
+          ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH }
+          : {},
+      },
+    },
   ],
   webServer: {
     command: `npm run start -- -p ${port}`,

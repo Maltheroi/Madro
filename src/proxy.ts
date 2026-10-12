@@ -1,7 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/", "/log-ind", "/opret-konto", "/glemt-adgangskode", "/auth", "/privatlivspolitik", "/opsaetning"];
+const PUBLIC_PATHS = [
+  "/",
+  "/log-ind",
+  "/opret-konto",
+  "/glemt-adgangskode",
+  "/auth",
+  "/privatlivspolitik",
+  "/opsaetning",
+];
 
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || (p !== "/" && pathname.startsWith(p + "/")));
@@ -29,7 +37,9 @@ export async function proxy(request: NextRequest) {
       setAll(cookiesToSet, headers) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         response = NextResponse.next({ request });
-        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+        cookiesToSet.forEach(({ name, value, options }) =>
+          response.cookies.set(name, value, options),
+        );
         Object.entries(headers).forEach(([k, v]) => response.headers.set(k, v));
       },
     },
@@ -51,5 +61,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/health|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|api/health|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+  ],
 };

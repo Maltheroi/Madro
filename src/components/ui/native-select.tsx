@@ -9,14 +9,17 @@ function NativeSelect({ className, children, ...props }: React.ComponentProps<"s
       <select
         data-slot="select"
         className={cn(
-          "h-11 w-full appearance-none rounded-md border border-input bg-card py-2 pr-9 pl-3 text-base shadow-xs disabled:opacity-50 aria-invalid:border-destructive md:text-sm",
+          "border-input bg-card aria-invalid:border-destructive h-11 w-full appearance-none rounded-md border py-2 pr-9 pl-3 text-base shadow-xs disabled:opacity-50 md:text-sm",
           className,
         )}
         {...props}
       >
         {children}
       </select>
-      <ChevronDown aria-hidden className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" />
+      <ChevronDown
+        aria-hidden
+        className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2"
+      />
     </div>
   );
 }

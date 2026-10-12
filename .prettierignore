@@ -4,3 +4,6 @@ package-lock.json
 supabase/.temp
 playwright-report
 test-results
+.local-stack
+supabase/seed.sql
+*.md

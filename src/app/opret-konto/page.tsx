@@ -6,7 +6,10 @@ export const metadata: Metadata = { title: "Opret konto" };
 
 export default function SignUpPage() {
   return (
-    <AuthShell title="Opret konto" subtitle="Det tager under et minut. Derefter sætter vi dine mål op.">
+    <AuthShell
+      title="Opret konto"
+      subtitle="Det tager under et minut. Derefter sætter vi dine mål op."
+    >
       <SignUpForm />
     </AuthShell>
   );

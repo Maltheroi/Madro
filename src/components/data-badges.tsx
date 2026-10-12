@@ -18,9 +18,19 @@ export function PriceStatusBadge({ status }: { status: PriceStatus | null }) {
   );
 }
 
-const CONFIDENCE_LABEL: Record<DataConfidence, string> = { high: "Høj", medium: "Middel", low: "Lav" };
+const CONFIDENCE_LABEL: Record<DataConfidence, string> = {
+  high: "Høj",
+  medium: "Middel",
+  low: "Lav",
+};
 
-export function NutritionConfidenceBadge({ confidence, completeness }: { confidence: DataConfidence; completeness: number }) {
+export function NutritionConfidenceBadge({
+  confidence,
+  completeness,
+}: {
+  confidence: DataConfidence;
+  completeness: number;
+}) {
   const variant = confidence === "high" ? "success" : confidence === "medium" ? "info" : "warning";
   return (
     <Badge variant={variant} title={`Datadækning ${Math.round(completeness * 100)} %`}>
@@ -33,11 +43,14 @@ export function NutritionConfidenceBadge({ confidence, completeness }: { confide
 /** Banner shown wherever synthetic prices may appear. */
 export function SyntheticDataNotice() {
   return (
-    <div role="note" className="flex gap-3 rounded-lg bg-warning p-3 text-sm text-warning-foreground">
+    <div
+      role="note"
+      className="bg-warning text-warning-foreground flex gap-3 rounded-lg p-3 text-sm"
+    >
       <FlaskConical aria-hidden className="mt-0.5 size-4 shrink-0" />
       <p>
-        <strong>Testpriser.</strong> Der er endnu ikke forbundet en godkendt priskilde. Priserne her er syntetiske
-        udviklingsdata for fiktive demokæder og ikke rigtige butikspriser.
+        <strong>Testpriser.</strong> Der er endnu ikke forbundet en godkendt priskilde. Priserne her
+        er syntetiske udviklingsdata for fiktive demokæder og ikke rigtige butikspriser.
       </p>
     </div>
   );
@@ -45,11 +58,11 @@ export function SyntheticDataNotice() {
 
 export function DevNutritionNotice() {
   return (
-    <div role="note" className="flex gap-3 rounded-lg bg-info p-3 text-sm text-info-foreground">
+    <div role="note" className="bg-info text-info-foreground flex gap-3 rounded-lg p-3 text-sm">
       <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
       <p>
-        Næringsværdierne er foreløbige udviklingsdata og endnu ikke verificeret mod Frida (DTU Fødevareinstituttet).
-        Brug dem som vejledende.
+        Næringsværdierne er foreløbige udviklingsdata og endnu ikke verificeret mod Frida (DTU
+        Fødevareinstituttet). Brug dem som vejledende.
       </p>
     </div>
   );

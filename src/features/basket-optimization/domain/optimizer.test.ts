@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { optimizeBasket, packagesNeeded, type OptimizeInput } from "./optimizer";
-import { effectivePrice, priceStatus, type PriceObservation } from "@/features/grocery-pricing/domain/prices";
+import {
+  effectivePrice,
+  priceStatus,
+  type PriceObservation,
+} from "@/features/grocery-pricing/domain/prices";
 import { consolidateIngredients } from "@/features/shopping-list/domain/consolidate";
 
 const now = new Date("2026-10-12T12:00:00Z");
@@ -41,7 +45,9 @@ describe("packagesNeeded", () => {
 describe("price freshness", () => {
   it("classifies statuses", () => {
     expect(priceStatus(obs("a", "p", "r", 100), now)).toBe("live");
-    expect(priceStatus(obs("a", "p", "r", 100, { observedAt: "2026-10-01T00:00:00Z" }), now)).toBe("stale");
+    expect(priceStatus(obs("a", "p", "r", 100, { observedAt: "2026-10-01T00:00:00Z" }), now)).toBe(
+      "stale",
+    );
     expect(priceStatus(obs("a", "p", "r", 100, { isSynthetic: true }), now)).toBe("synthetic");
     expect(priceStatus(obs("a", "p", "r", 100, { priceType: "manual" }), now)).toBe("estimated");
   });
@@ -49,7 +55,11 @@ describe("price freshness", () => {
   it("uses promotions only within validity and when cheaper", () => {
     const list = [
       obs("reg", "p", "r", 2000),
-      obs("promo", "p", "r", 1500, { priceType: "promotional", validFrom: "2026-10-10T00:00:00Z", validTo: "2026-10-16T23:59:59Z" }),
+      obs("promo", "p", "r", 1500, {
+        priceType: "promotional",
+        validFrom: "2026-10-10T00:00:00Z",
+        validTo: "2026-10-16T23:59:59Z",
+      }),
       obs("expired", "p", "r", 1000, { priceType: "promotional", validTo: "2026-10-05T00:00:00Z" }),
     ];
     const e = effectivePrice(list, "p", "s1", "r", now)!;
@@ -71,20 +81,85 @@ describe("price freshness", () => {
 function baseInput(): OptimizeInput {
   return {
     items: [
-      { ingredientId: "havregryn", name: "Havregryn", category: "kolonial", dimension: "mass", quantity: 1200, coveredByPantry: 0, toBuy: 1200, required: true, recipeIds: [] },
-      { ingredientId: "maelk", name: "Mælk", category: "mejeri", dimension: "volume", quantity: 1500, coveredByPantry: 0, toBuy: 1500, required: true, recipeIds: [] },
-      { ingredientId: "persille", name: "Persille", category: "frugt", dimension: "mass", quantity: 20, coveredByPantry: 0, toBuy: 20, required: false, recipeIds: [] },
+      {
+        ingredientId: "havregryn",
+        name: "Havregryn",
+        category: "kolonial",
+        dimension: "mass",
+        quantity: 1200,
+        coveredByPantry: 0,
+        toBuy: 1200,
+        required: true,
+        recipeIds: [],
+      },
+      {
+        ingredientId: "maelk",
+        name: "Mælk",
+        category: "mejeri",
+        dimension: "volume",
+        quantity: 1500,
+        coveredByPantry: 0,
+        toBuy: 1500,
+        required: true,
+        recipeIds: [],
+      },
+      {
+        ingredientId: "persille",
+        name: "Persille",
+        category: "frugt",
+        dimension: "mass",
+        quantity: 20,
+        coveredByPantry: 0,
+        toBuy: 20,
+        required: false,
+        recipeIds: [],
+      },
     ],
     stores: [
       { id: "s-a", retailerId: "A", name: "Butik A", retailerName: "A" },
       { id: "s-b", retailerId: "B", name: "Butik B", retailerName: "B" },
     ],
     products: [
-      { id: "a-oats", retailerId: "A", name: "Havregryn 1 kg", brand: null, packageQuantity: 1, packageUnit: "kg" },
-      { id: "a-milk", retailerId: "A", name: "Letmælk 1 l", brand: null, packageQuantity: 1, packageUnit: "l" },
-      { id: "a-pers", retailerId: "A", name: "Persille", brand: null, packageQuantity: 50, packageUnit: "g" },
-      { id: "b-oats", retailerId: "B", name: "Havregryn 500 g", brand: null, packageQuantity: 500, packageUnit: "g" },
-      { id: "b-milk", retailerId: "B", name: "Letmælk 1 l", brand: null, packageQuantity: 1, packageUnit: "l" },
+      {
+        id: "a-oats",
+        retailerId: "A",
+        name: "Havregryn 1 kg",
+        brand: null,
+        packageQuantity: 1,
+        packageUnit: "kg",
+      },
+      {
+        id: "a-milk",
+        retailerId: "A",
+        name: "Letmælk 1 l",
+        brand: null,
+        packageQuantity: 1,
+        packageUnit: "l",
+      },
+      {
+        id: "a-pers",
+        retailerId: "A",
+        name: "Persille",
+        brand: null,
+        packageQuantity: 50,
+        packageUnit: "g",
+      },
+      {
+        id: "b-oats",
+        retailerId: "B",
+        name: "Havregryn 500 g",
+        brand: null,
+        packageQuantity: 500,
+        packageUnit: "g",
+      },
+      {
+        id: "b-milk",
+        retailerId: "B",
+        name: "Letmælk 1 l",
+        brand: null,
+        packageQuantity: 1,
+        packageUnit: "l",
+      },
     ],
     matches: [
       { ingredientId: "havregryn", productId: "a-oats", quality: "exact", allergens: ["gluten"] },
@@ -123,7 +198,9 @@ describe("basket optimizer", () => {
     // oats 3 × 6.00, milk 2 × 11.00, parsley optional & missing
     expect(b.checkoutTotalOre).toBe(1800 + 2200);
     expect(b.complete).toBe(true);
-    expect(b.unmatched).toEqual([expect.objectContaining({ ingredientId: "persille", required: false })]);
+    expect(b.unmatched).toEqual([
+      expect.objectContaining({ ingredientId: "persille", required: false }),
+    ]);
     expect(res.recommended!.store.id).toBe("s-b");
     expect(res.savings).toMatchObject({ againstStoreId: "s-a", amountOre: 2400, verified: true });
   });
@@ -140,7 +217,9 @@ describe("basket optimizer", () => {
 
   it("never recommends an incomplete basket and explains missing items", () => {
     const input = baseInput();
-    input.observations = input.observations.filter((o) => o.productId !== "b-milk" && o.productId !== "a-oats");
+    input.observations = input.observations.filter(
+      (o) => o.productId !== "b-milk" && o.productId !== "a-oats",
+    );
     const res = optimizeBasket(input);
     expect(res.recommended).toBeNull();
     expect(res.explanation[0]).toContain("Ingen butik");
@@ -162,7 +241,9 @@ describe("basket optimizer", () => {
   it("does not match products that conflict with allergies", () => {
     const res = optimizeBasket({ ...baseInput(), userAllergens: ["gluten"] });
     const b = res.baskets.find((x) => x.store.id === "s-b")!;
-    expect(b.unmatched.find((u) => u.ingredientId === "havregryn")!.reason).toBe("allergen_conflict");
+    expect(b.unmatched.find((u) => u.ingredientId === "havregryn")!.reason).toBe(
+      "allergen_conflict",
+    );
     expect(res.recommended).toBeNull();
   });
 
@@ -186,8 +267,28 @@ describe("basket optimizer", () => {
 describe("consolidation", () => {
   it("sums across meals, scales by servings and subtracts pantry", () => {
     const recipes = new Map([
-      ["r1", { id: "r1", servings: 4, lines: [{ ingredientId: "ris", quantity: 300, unit: "g" as const }, { ingredientId: "olie", quantity: 2, unit: "spsk" as const }] }],
-      ["r2", { id: "r2", servings: 2, lines: [{ ingredientId: "ris", quantity: 150, unit: "g" as const }, { ingredientId: "aeg", quantity: 2, unit: "stk" as const }] }],
+      [
+        "r1",
+        {
+          id: "r1",
+          servings: 4,
+          lines: [
+            { ingredientId: "ris", quantity: 300, unit: "g" as const },
+            { ingredientId: "olie", quantity: 2, unit: "spsk" as const },
+          ],
+        },
+      ],
+      [
+        "r2",
+        {
+          id: "r2",
+          servings: 2,
+          lines: [
+            { ingredientId: "ris", quantity: 150, unit: "g" as const },
+            { ingredientId: "aeg", quantity: 2, unit: "stk" as const },
+          ],
+        },
+      ],
     ]);
     const ingredients = new Map([
       ["ris", { id: "ris", name: "Ris", category: "kolonial" }],

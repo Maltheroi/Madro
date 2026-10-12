@@ -69,7 +69,8 @@
 }
 
 @theme inline {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -117,6 +118,6 @@
     font-feature-settings: "tnum" 1;
   }
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-ring;
+    @apply outline-ring outline-2 outline-offset-2;
   }
 }

@@ -10,8 +10,16 @@ import {
 } from "@/features/nutrition/domain/recipe-nutrition";
 import { convert, dimensionOf, type Unit } from "@/features/nutrition/domain/units";
 import type { MealSlot, PlannerRecipe } from "@/features/meal-planning/domain/planner";
-import { effectivePrice, type PriceObservation, type PriceStatus } from "@/features/grocery-pricing/domain/prices";
-import type { IngredientProductMatch, Product, Store } from "@/features/basket-optimization/domain/optimizer";
+import {
+  effectivePrice,
+  type PriceObservation,
+  type PriceStatus,
+} from "@/features/grocery-pricing/domain/prices";
+import type {
+  IngredientProductMatch,
+  Product,
+  Store,
+} from "@/features/basket-optimization/domain/optimizer";
 
 export interface CatalogIngredient extends IngredientNutritionData {
   slug: string;
@@ -50,7 +58,12 @@ export interface CatalogRecipe {
   nutrition: RecipeNutrition;
   allergens: string[];
   dietTags: string[];
-  cost: { perServingOre: number | null; statuses: PriceStatus[]; pricedLines: number; totalLines: number };
+  cost: {
+    perServingOre: number | null;
+    statuses: PriceStatus[];
+    pricedLines: number;
+    totalLines: number;
+  };
 }
 
 export interface PriceData {
@@ -85,7 +98,12 @@ export async function loadPriceData(tx: Tx, now: Date): Promise<PriceData> {
        order by product_id, coalesce(store_id::text, ''), price_type, coalesce(reported_by::text, ''), observed_at desc`,
   ]);
   return {
-    stores: stores.map((s) => ({ id: s.id, retailerId: s.retailer_id, name: s.name, retailerName: s.retailer_name })),
+    stores: stores.map((s) => ({
+      id: s.id,
+      retailerId: s.retailer_id,
+      name: s.name,
+      retailerName: s.retailer_name,
+    })),
     products: products.map((p) => ({
       id: p.id,
       retailerId: p.retailer_id,
@@ -94,7 +112,12 @@ export async function loadPriceData(tx: Tx, now: Date): Promise<PriceData> {
       packageQuantity: p.package_quantity,
       packageUnit: p.package_unit,
     })),
-    matches: matches.map((m) => ({ ingredientId: m.ingredient_id, productId: m.product_id, quality: m.quality, allergens: m.allergens })),
+    matches: matches.map((m) => ({
+      ingredientId: m.ingredient_id,
+      productId: m.product_id,
+      quality: m.quality,
+      allergens: m.allergens,
+    })),
     observations: observations.map((o) => ({
       id: o.id,
       productId: o.product_id,
@@ -130,7 +153,9 @@ function cheapestUnitPrice(
     if (!product) continue;
     const size = convert(product.packageQuantity, product.packageUnit, baseUnit, ingredient);
     if (!size) continue;
-    for (const store of prices.stores.filter((s) => s.retailerId === product.retailerId).slice(0, 1)) {
+    for (const store of prices.stores
+      .filter((s) => s.retailerId === product.retailerId)
+      .slice(0, 1)) {
       const p = effectivePrice(prices.observations, product.id, store.id, store.retailerId, now);
       if (!p || p.status === "stale") continue;
       const perUnit = p.observation.priceOre / size;
@@ -190,7 +215,11 @@ export async function loadCatalog(tx: Tx, now = new Date()): Promise<Catalog> {
     };
     ing.facts.push(facts);
     if (!ing.sources.some((s) => s.key === f.source_key)) {
-      ing.sources.push({ key: f.source_key, name: f.source_name, verification: f.verification_status });
+      ing.sources.push({
+        key: f.source_key,
+        name: f.source_name,
+        verification: f.verification_status,
+      });
     }
   }
 
@@ -213,13 +242,22 @@ export async function loadCatalog(tx: Tx, now = new Date()): Promise<Catalog> {
       optional: l.optional,
     }));
     const nutrition = calculateRecipeNutrition(
-      lines.map((l) => ({ ingredientId: l.ingredientId, quantity: l.quantity, unit: l.unit, state: l.state })),
+      lines.map((l) => ({
+        ingredientId: l.ingredientId,
+        quantity: l.quantity,
+        unit: l.unit,
+        state: l.state,
+      })),
       r.servings,
       ingredients,
     );
-    const lineIngredients = lines.map((l) => ingredients.get(l.ingredientId)).filter((x): x is CatalogIngredient => !!x);
+    const lineIngredients = lines
+      .map((l) => ingredients.get(l.ingredientId))
+      .filter((x): x is CatalogIngredient => !!x);
     const allergens = [...new Set(lineIngredients.flatMap((i) => i.allergens))].sort();
-    const dietTags = DIET_ORDER.filter((tag) => lineIngredients.every((i) => i.dietTags.includes(tag)));
+    const dietTags = DIET_ORDER.filter((tag) =>
+      lineIngredients.every((i) => i.dietTags.includes(tag)),
+    );
 
     let costOre = 0;
     let priced = 0;
@@ -228,10 +266,16 @@ export async function loadCatalog(tx: Tx, now = new Date()): Promise<Catalog> {
       const ing = ingredients.get(l.ingredientId);
       if (!ing) continue;
       const dim = dimensionOf(l.unit);
-      const baseUnit: Unit = dim === "count" && !ing.gramsPerPiece ? "stk" : dim === "volume" && !ing.densityGPerMl ? "ml" : "g";
+      const baseUnit: Unit =
+        dim === "count" && !ing.gramsPerPiece
+          ? "stk"
+          : dim === "volume" && !ing.densityGPerMl
+            ? "ml"
+            : "g";
       const qty = convert(l.quantity, l.unit, baseUnit, ing);
       const key = `${ing.ingredientId}:${baseUnit}`;
-      if (!unitPriceCache.has(key)) unitPriceCache.set(key, cheapestUnitPrice(ing, baseUnit, prices, now));
+      if (!unitPriceCache.has(key))
+        unitPriceCache.set(key, cheapestUnitPrice(ing, baseUnit, prices, now));
       const up = unitPriceCache.get(key);
       if (qty !== null && up) {
         costOre += qty * up.orePerUnit;
@@ -256,7 +300,8 @@ export async function loadCatalog(tx: Tx, now = new Date()): Promise<Catalog> {
       allergens,
       dietTags,
       cost: {
-        perServingOre: priced === lines.length && lines.length > 0 ? Math.round(costOre / r.servings) : null,
+        perServingOre:
+          priced === lines.length && lines.length > 0 ? Math.round(costOre / r.servings) : null,
         statuses: [...statuses],
         pricedLines: priced,
         totalLines: lines.length,
@@ -302,7 +347,12 @@ export function resolveIngredientTerms(
     let hit = false;
     for (const ing of ingredients.values()) {
       const names = [ing.slug.replaceAll("-", " "), norm(ing.nameDa), ...ing.synonyms.map(norm)];
-      if (names.some((n) => n === term || n.includes(term) || (term.length >= 4 && term.includes(n.split(",")[0])))) {
+      if (
+        names.some(
+          (n) =>
+            n === term || n.includes(term) || (term.length >= 4 && term.includes(n.split(",")[0])),
+        )
+      ) {
         ids.add(ing.ingredientId);
         hit = true;
       }

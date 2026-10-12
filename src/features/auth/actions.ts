@@ -18,7 +18,9 @@ const password = z
 
 /** Only allow same-site relative redirects. */
 function safeNext(next: unknown, fallback: string): string {
-  return typeof next === "string" && next.startsWith("/") && !next.startsWith("//") ? next : fallback;
+  return typeof next === "string" && next.startsWith("/") && !next.startsWith("//")
+    ? next
+    : fallback;
 }
 
 /** Map Supabase auth errors to Danish messages without leaking account existence. */
@@ -38,30 +40,49 @@ function authErrorMessage(code: string | undefined, fallback: string): string {
   }
 }
 
-export async function signIn(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
-  const parsed = z.object({ email, password: z.string().min(1, "Angiv din adgangskode.") }).safeParse({
-    email: formData.get("email"),
-    password: formData.get("password"),
-  });
-  if (!parsed.success) return { ok: false, error: "Tjek felterne.", fieldErrors: fieldErrorsOf(parsed.error) };
+export async function signIn(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = z
+    .object({ email, password: z.string().min(1, "Angiv din adgangskode.") })
+    .safeParse({
+      email: formData.get("email"),
+      password: formData.get("password"),
+    });
+  if (!parsed.success)
+    return { ok: false, error: "Tjek felterne.", fieldErrors: fieldErrorsOf(parsed.error) };
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) {
     logEvent("auth.sign_in_failed", { code: error.code });
-    return { ok: false, error: authErrorMessage(error.code, "Du kunne ikke logges ind. Prøv igen.") };
+    return {
+      ok: false,
+      error: authErrorMessage(error.code, "Du kunne ikke logges ind. Prøv igen."),
+    };
   }
   redirect(safeNext(formData.get("next"), "/oversigt"));
 }
 
-export async function signUp(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+export async function signUp(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
   const parsed = z
     .object({
       email,
       password,
-      consent: z.literal("on", { error: "Du skal acceptere privatlivspolitikken for at oprette en konto." }),
+      consent: z.literal("on", {
+        error: "Du skal acceptere privatlivspolitikken for at oprette en konto.",
+      }),
     })
-    .safeParse({ email: formData.get("email"), password: formData.get("password"), consent: formData.get("consent") });
-  if (!parsed.success) return { ok: false, error: "Tjek felterne.", fieldErrors: fieldErrorsOf(parsed.error) };
+    .safeParse({
+      email: formData.get("email"),
+      password: formData.get("password"),
+      consent: formData.get("consent"),
+    });
+  if (!parsed.success)
+    return { ok: false, error: "Tjek felterne.", fieldErrors: fieldErrorsOf(parsed.error) };
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
@@ -70,7 +91,10 @@ export async function signUp(_prev: ActionResult | null, formData: FormData): Pr
   });
   if (error) {
     logEvent("auth.sign_up_failed", { code: error.code });
-    return { ok: false, error: authErrorMessage(error.code, "Kontoen kunne ikke oprettes. Prøv igen.") };
+    return {
+      ok: false,
+      error: authErrorMessage(error.code, "Kontoen kunne ikke oprettes. Prøv igen."),
+    };
   }
   if (data.session) redirect("/onboarding");
   return {
@@ -79,24 +103,43 @@ export async function signUp(_prev: ActionResult | null, formData: FormData): Pr
   };
 }
 
-export async function requestPasswordReset(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+export async function requestPasswordReset(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
   const parsed = z.object({ email }).safeParse({ email: formData.get("email") });
-  if (!parsed.success) return { ok: false, error: "Tjek felterne.", fieldErrors: fieldErrorsOf(parsed.error) };
+  if (!parsed.success)
+    return { ok: false, error: "Tjek felterne.", fieldErrors: fieldErrorsOf(parsed.error) };
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
     redirectTo: `${getEnv().NEXT_PUBLIC_SITE_URL}/auth/callback?next=/ny-adgangskode`,
   });
   if (error) logEvent("auth.reset_failed", { code: error.code });
   // Same response whether or not the account exists.
-  return { ok: true, message: "Hvis der findes en konto med den e-mail, har vi sendt et link til at nulstille adgangskoden." };
+  return {
+    ok: true,
+    message:
+      "Hvis der findes en konto med den e-mail, har vi sendt et link til at nulstille adgangskoden.",
+  };
 }
 
-export async function updatePassword(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+export async function updatePassword(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
   const parsed = z.object({ password }).safeParse({ password: formData.get("password") });
-  if (!parsed.success) return { ok: false, error: "Tjek felterne.", fieldErrors: fieldErrorsOf(parsed.error) };
+  if (!parsed.success)
+    return { ok: false, error: "Tjek felterne.", fieldErrors: fieldErrorsOf(parsed.error) };
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
-  if (error) return { ok: false, error: authErrorMessage(error.code, "Adgangskoden kunne ikke opdateres. Linket kan være udløbet.") };
+  if (error)
+    return {
+      ok: false,
+      error: authErrorMessage(
+        error.code,
+        "Adgangskoden kunne ikke opdateres. Linket kan være udløbet.",
+      ),
+    };
   redirect("/oversigt");
 }
 

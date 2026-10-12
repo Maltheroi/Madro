@@ -16,7 +16,11 @@ export const LIMITS = {
   recommendation: { action: "calorie_recommendation", limit: 20, windowSeconds: 3600 },
 } as const;
 
-export async function enforceRateLimit(tx: Tx, l: (typeof LIMITS)[keyof typeof LIMITS]): Promise<void> {
-  const [{ ok }] = await tx`select public.consume_rate_limit(${l.action}, ${l.limit}, ${l.windowSeconds}) as ok`;
+export async function enforceRateLimit(
+  tx: Tx,
+  l: (typeof LIMITS)[keyof typeof LIMITS],
+): Promise<void> {
+  const [{ ok }] =
+    await tx`select public.consume_rate_limit(${l.action}, ${l.limit}, ${l.windowSeconds}) as ok`;
   if (!ok) throw new RateLimitError();
 }

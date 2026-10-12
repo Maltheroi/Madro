@@ -22,7 +22,8 @@ export function ageFromBirthYear(birthYear: number, now = new Date()): number {
 
 /** Initial estimate for a complete profile, or null if fields are missing. */
 export function estimateForProfile(p: Profile, weightKg: number | null): EnergyEstimate | null {
-  if (!p.birthYear || !p.heightCm || !p.sex || !p.activityLevel || !p.goal || !weightKg) return null;
+  if (!p.birthYear || !p.heightCm || !p.sex || !p.activityLevel || !p.goal || !weightKg)
+    return null;
   return estimateEnergy({
     ageYears: ageFromBirthYear(p.birthYear),
     heightCm: p.heightCm,
@@ -81,7 +82,11 @@ export async function saveProfile(
     if (opts.onboarding || opts.recalculateGoals) {
       const profile = (await getProfile(tx, user.id))!;
       const estimate = estimateForProfile(profile, d.weightKg);
-      const algorithmVersionId = await getAlgorithmVersionId(tx, INITIAL_TARGETS_ALGORITHM.key, INITIAL_TARGETS_ALGORITHM.version);
+      const algorithmVersionId = await getAlgorithmVersionId(
+        tx,
+        INITIAL_TARGETS_ALGORITHM.key,
+        INITIAL_TARGETS_ALGORITHM.version,
+      );
       if (!d.allowCalorieEstimate && d.customEnergyKcal !== undefined) {
         const kcal = Math.round(d.customEnergyKcal);
         // Fill any macro the user left empty from the documented split for their own calorie target.
@@ -89,7 +94,9 @@ export async function saveProfile(
         await replaceActiveGoal(tx, user.id, {
           energyKcal: kcal,
           proteinG: Math.round(d.customProteinG ?? fallback?.proteinG ?? (kcal * 0.25) / 4),
-          carbohydrateG: Math.round(d.customCarbohydrateG ?? fallback?.carbohydrateG ?? (kcal * 0.45) / 4),
+          carbohydrateG: Math.round(
+            d.customCarbohydrateG ?? fallback?.carbohydrateG ?? (kcal * 0.45) / 4,
+          ),
           fatG: Math.round(d.customFatG ?? fallback?.fatG ?? (kcal * 0.3) / 9),
           source: "user",
           bmrKcal: estimate?.bmrKcal ?? null,
@@ -116,5 +123,9 @@ export async function saveProfile(
 
 function scaleMacros(e: EnergyEstimate, kcal: number) {
   const f = kcal / e.targetKcal;
-  return { proteinG: e.macros.proteinG, carbohydrateG: e.macros.carbohydrateG * f, fatG: e.macros.fatG * f };
+  return {
+    proteinG: e.macros.proteinG,
+    carbohydrateG: e.macros.carbohydrateG * f,
+    fatG: e.macros.fatG * f,
+  };
 }

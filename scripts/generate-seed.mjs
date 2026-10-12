@@ -32,7 +32,23 @@ out.push(`insert into public.nutrition_sources (key, name, license, version, ver
 on conflict (key) do nothing;
 `);
 
-for (const [slug, name, category, allergens, diet, opts, state, kcal, p, c, f, fib, sug, sat, salt] of ingredients) {
+for (const [
+  slug,
+  name,
+  category,
+  allergens,
+  diet,
+  opts,
+  state,
+  kcal,
+  p,
+  c,
+  f,
+  fib,
+  sug,
+  sat,
+  salt,
+] of ingredients) {
   out.push(`insert into public.ingredients (slug, canonical_name, name_da, category, default_unit, density_g_per_ml, grams_per_piece, cooked_yield_factor, allergens, diet_tags, shelf_stable)
 values (${q(slug)}, ${q(slug.replaceAll("-", " "))}, ${q(name)}, ${q(category)}, ${q(opts.unit ?? "g")}, ${num(opts.density)}, ${num(opts.gpp)}, ${num(opts.yield)}, ${arr(allergens)}, ${arr(diet)}, ${opts.shelfStable ? "true" : "false"})
 on conflict (slug) do nothing;
@@ -42,7 +58,18 @@ from public.ingredients i, public.nutrition_sources s where i.slug = ${q(slug)} 
 on conflict (ingredient_id, food_state, source_id) do nothing;`);
 }
 
-for (const [slug, name, desc, servings, prep, cook, mealTypes, difficulty, steps, lines] of recipes) {
+for (const [
+  slug,
+  name,
+  desc,
+  servings,
+  prep,
+  cook,
+  mealTypes,
+  difficulty,
+  steps,
+  lines,
+] of recipes) {
   out.push(`insert into public.recipes (slug, name_da, description_da, servings, prep_minutes, cook_minutes, meal_types, instructions_da, difficulty)
 values (${q(slug)}, ${q(name)}, ${q(desc)}, ${servings}, ${prep}, ${cook}, array[${mealTypes.map(q).join(", ")}]::public.meal_slot[], ${arr(steps)}, ${q(difficulty)})
 on conflict (slug) do nothing;`);
@@ -57,9 +84,15 @@ where r.slug = ${q(slug)} and i.slug = ${q(ing)} and not exists (select 1 from p
 out.push(`insert into public.data_sync_jobs (id, provider_key, job_type, status, started_at, finished_at, metadata)
 values ('00000000-0000-4000-8000-000000000001', 'synthetic-fixtures', 'seed', 'succeeded', now(), now(), '{"note":"Synthetic development fixtures"}')
 on conflict (id) do nothing;`);
-const cities = [["8000", "Aarhus C"], ["2200", "København N"], ["5000", "Odense C"]];
+const cities = [
+  ["8000", "Aarhus C"],
+  ["2200", "København N"],
+  ["5000", "Odense C"],
+];
 for (const r of demoRetailers) {
-  out.push(`insert into public.retailers (slug, name) values (${q(r.slug)}, ${q(r.name)}) on conflict (slug) do nothing;`);
+  out.push(
+    `insert into public.retailers (slug, name) values (${q(r.slug)}, ${q(r.name)}) on conflict (slug) do nothing;`,
+  );
   cities.forEach(([zip, city], ci) => {
     out.push(`insert into public.stores (retailer_id, name, source_key, external_id, postal_code, city)
 select id, ${q(`${r.name.replace(" (syntetisk)", "")} ${city}`)}, 'synthetic-fixtures', ${q(`${r.slug}-${ci}`)}, ${q(zip)}, ${q(city)} from public.retailers where slug = ${q(r.slug)}
@@ -103,4 +136,6 @@ and (select count(*) from public.price_observations o where o.product_id = p.id)
 }
 
 writeFileSync(join(root, "supabase/seed.sql"), out.join("\n\n") + "\n");
-console.log(`Wrote supabase/seed.sql (${ingredients.length} ingredients, ${recipes.length} recipes, ${demoRetailers.length} demo chains)`);
+console.log(
+  `Wrote supabase/seed.sql (${ingredients.length} ingredients, ${recipes.length} recipes, ${demoRetailers.length} demo chains)`,
+);
