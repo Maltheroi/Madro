@@ -9,6 +9,7 @@ const PUBLIC_PATHS = [
   "/auth",
   "/privatlivspolitik",
   "/opsaetning",
+  "/offline",
 ];
 
 function isPublic(pathname: string) {
@@ -30,6 +31,8 @@ function contentSecurityPolicy(nonce: string) {
     "img-src 'self' blob: data:",
     "font-src 'self'",
     "connect-src 'self'",
+    "worker-src 'self'",
+    "manifest-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -99,6 +102,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/health|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/health|sw\\.js|manifest\\.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

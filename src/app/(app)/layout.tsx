@@ -14,7 +14,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const profile = await withUser(user.id, (tx) => getProfile(tx, user.id));
   if (!profile?.onboardingCompletedAt) redirect("/onboarding");
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-6xl gap-8 md:px-6">
+    <div className="mx-auto flex min-h-dvh w-full max-w-6xl md:gap-8 md:px-6">
       <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col py-6 md:flex">
         <Link href="/oversigt" className="mb-8 px-3" aria-label="Til oversigten">
           <Logo />

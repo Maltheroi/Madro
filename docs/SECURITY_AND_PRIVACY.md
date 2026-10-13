@@ -56,3 +56,7 @@ AI is off unless `ANTHROPIC_API_KEY` is set. It can only re-rank substitution ca
 - Review the privacy policy and a DPA with each processor.
 - Configure SMTP for auth emails and set the site URL and redirect URLs in Supabase.
 - Add error monitoring without PII and a dependency audit in CI.
+
+## Installable app (PWA)
+
+`src/app/manifest.ts` and `public/sw.js` make the site installable on phones. The service worker only caches an offline page and one icon; it never caches pages or API responses, so personal data is not stored on the device by the app. The CSP allows `worker-src 'self'` and `manifest-src 'self'`.
