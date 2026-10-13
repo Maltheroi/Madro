@@ -96,7 +96,7 @@ export default function LandingPage() {
       <footer className="border-t">
         <div className="text-muted-foreground mx-auto flex max-w-5xl flex-wrap gap-4 px-4 py-6 text-sm">
           <span>© {new Date().getFullYear()} Madro</span>
-          <Link href="/privatlivspolitik" className="underline-offset-4 hover:underline">
+          <Link href="/privatlivspolitik" className="underline underline-offset-4">
             Privatlivspolitik
           </Link>
         </div>

@@ -43,10 +43,10 @@ export function LoginForm({ next }: { next?: string }) {
       </FormField>
       <SubmitButton pendingText="Logger ind …">Log ind</SubmitButton>
       <div className="flex justify-between text-sm">
-        <Link href="/glemt-adgangskode" className="text-primary underline-offset-4 hover:underline">
+        <Link href="/glemt-adgangskode" className="text-primary underline underline-offset-4">
           Glemt adgangskode?
         </Link>
-        <Link href="/opret-konto" className="text-primary underline-offset-4 hover:underline">
+        <Link href="/opret-konto" className="text-primary underline underline-offset-4">
           Opret konto
         </Link>
       </div>
@@ -104,7 +104,7 @@ export function SignUpForm() {
       <SubmitButton pendingText="Opretter …">Opret konto</SubmitButton>
       <p className="text-sm">
         Har du allerede en konto?{" "}
-        <Link href="/log-ind" className="text-primary underline-offset-4 hover:underline">
+        <Link href="/log-ind" className="text-primary underline underline-offset-4">
           Log ind
         </Link>
       </p>
@@ -121,7 +121,7 @@ export function ResetRequestForm() {
         <Input name="email" type="email" autoComplete="email" required />
       </FormField>
       <SubmitButton pendingText="Sender …">Send link</SubmitButton>
-      <Link href="/log-ind" className="text-primary text-sm underline-offset-4 hover:underline">
+      <Link href="/log-ind" className="text-primary text-sm underline underline-offset-4">
         Tilbage til log ind
       </Link>
     </form>

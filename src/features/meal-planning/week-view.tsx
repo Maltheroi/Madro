@@ -142,7 +142,7 @@ export function WeekView({
                         </p>
                         <Link
                           href={`/opskrifter/${m.recipeSlug}?portioner=${m.servings}`}
-                          className="font-medium underline-offset-4 hover:underline"
+                          className="font-medium underline underline-offset-4"
                         >
                           {m.recipeName}
                         </Link>

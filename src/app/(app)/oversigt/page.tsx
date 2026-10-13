@@ -166,7 +166,7 @@ export default async function DashboardPage({
             />
             <Link
               href="/madregistrering"
-              className="text-primary text-sm underline-offset-4 hover:underline"
+              className="text-primary text-sm underline underline-offset-4"
             >
               Registrér mad
             </Link>
@@ -179,7 +179,7 @@ export default async function DashboardPage({
               <CardTitle>
                 <Link
                   href={`/opskrifter/${nextRecipe.slug}?portioner=${nextMeal.servings}`}
-                  className="underline-offset-4 hover:underline"
+                  className="underline underline-offset-4"
                 >
                   {nextRecipe.name}
                 </Link>
@@ -219,7 +219,7 @@ export default async function DashboardPage({
                 ? `${latestTrend.trendKg - weekAgo.trendKg >= 0 ? "+" : ""}${formatDecimal(latestTrend.trendKg - weekAgo.trendKg)} kg på en uge (udjævnet)`
                 : "Vej dig et par gange om ugen for at se en trend."}
             </p>
-            <Link href="/vaegt" className="text-primary text-sm underline-offset-4 hover:underline">
+            <Link href="/vaegt" className="text-primary text-sm underline underline-offset-4">
               Registrér vægt
             </Link>
           </CardContent>
@@ -258,7 +258,7 @@ export default async function DashboardPage({
             ) : (
               <Link
                 href="/indkobsliste"
-                className="text-primary text-sm underline-offset-4 hover:underline"
+                className="text-primary text-sm underline underline-offset-4"
               >
                 {plan
                   ? "Find den bedste butik til ugens kurv"

@@ -8,6 +8,22 @@ test.describe("public pages", () => {
     await expect(page.locator("html")).toHaveAttribute("lang", "da");
   });
 
+  test("pages send a nonce-based CSP and load without violations", async ({ page }) => {
+    const violations: string[] = [];
+    page.on("console", (m) => {
+      if (/Content.Security.Policy|Refused to/i.test(m.text())) violations.push(m.text());
+    });
+    const res = await page.goto("/log-ind");
+    const csp = res?.headers()["content-security-policy"] ?? "";
+    expect(csp).toMatch(/script-src 'self' 'nonce-[^']+' 'strict-dynamic'/);
+    expect(csp).toContain("frame-ancestors 'none'");
+    // Client-side validation only works if hydration scripts were allowed to run.
+    await page.getByLabel("E-mail").fill("x@example.test");
+    await page.getByRole("button", { name: "Log ind" }).click();
+    await expect(page.getByText(/Angiv|adgangskode/i).first()).toBeVisible();
+    expect(violations).toEqual([]);
+  });
+
   test("app pages redirect to login when signed out", async ({ page }) => {
     await page.goto("/madplan");
     await expect(page).toHaveURL(/\/log-ind\?next=%2Fmadplan/);

@@ -30,7 +30,9 @@ Weight, body measurements and food logs are health data (GDPR art. 9). The app i
 
 ## HTTP
 
-Security headers in `next.config.ts`: `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options: DENY`, `Permissions-Policy`, HSTS. `X-Powered-By` is off. A Content-Security-Policy with nonces is not yet configured (see the implementation plan).
+Security headers in `next.config.ts`: `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options: DENY`, `Permissions-Policy`, HSTS. `X-Powered-By` is off.
+
+`src/proxy.ts` sets a Content-Security-Policy with a fresh nonce per request: scripts only with the nonce (`'strict-dynamic'`), `connect-src 'self'` (the browser never calls Supabase directly), `frame-ancestors 'none'`, `object-src 'none'`. Inline style attributes are allowed because Radix and Recharts use them. All pages render dynamically so the nonce can be applied. An E2E test checks the header and that no CSP violations occur.
 
 ## Logging
 
@@ -53,4 +55,4 @@ AI is off unless `ANTHROPIC_API_KEY` is set. It can only re-rank substitution ca
 - Supabase project in an EU region, with point-in-time recovery.
 - Review the privacy policy and a DPA with each processor.
 - Configure SMTP for auth emails and set the site URL and redirect URLs in Supabase.
-- Add a CSP, error monitoring without PII, and a dependency audit in CI.
+- Add error monitoring without PII and a dependency audit in CI.

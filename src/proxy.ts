@@ -16,19 +16,56 @@ function isPublic(pathname: string) {
 }
 
 /**
+ * Strict CSP: scripts only with this request's nonce (Next.js applies it during
+ * dynamic rendering). Inline style attributes stay allowed because Radix and
+ * Recharts set them; the browser never talks to Supabase directly, so
+ * connect-src is same-origin only.
+ */
+function contentSecurityPolicy(nonce: string) {
+  const dev = process.env.NODE_ENV === "development";
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' blob: data:",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    ...(dev ? [] : ["upgrade-insecure-requests"]),
+  ].join("; ");
+}
+
+/**
  * Refreshes the Supabase session cookie on every request and redirects
  * signed-out visitors away from app pages. Authorization is still enforced
  * again in every server action and data query; this is only the first gate.
  */
 export async function proxy(request: NextRequest) {
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const csp = contentSecurityPolicy(nonce);
+  const withCsp = (res: NextResponse) => {
+    res.headers.set("Content-Security-Policy", csp);
+    return res;
+  };
+  // Forward the nonce to rendering via request headers (rebuilt after cookie changes).
+  const next = () => {
+    const headers = new Headers(request.headers);
+    headers.set("x-nonce", nonce);
+    headers.set("Content-Security-Policy", csp);
+    return withCsp(NextResponse.next({ request: { headers } }));
+  };
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !key) {
-    if (isPublic(request.nextUrl.pathname)) return NextResponse.next();
-    return NextResponse.redirect(new URL("/opsaetning", request.url));
+    if (isPublic(request.nextUrl.pathname)) return next();
+    return withCsp(NextResponse.redirect(new URL("/opsaetning", request.url)));
   }
 
-  let response = NextResponse.next({ request });
+  let response = next();
   const supabase = createServerClient(url, key, {
     cookies: {
       getAll() {
@@ -36,7 +73,7 @@ export async function proxy(request: NextRequest) {
       },
       setAll(cookiesToSet, headers) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-        response = NextResponse.next({ request });
+        response = next();
         cookiesToSet.forEach(({ name, value, options }) =>
           response.cookies.set(name, value, options),
         );
@@ -52,10 +89,10 @@ export async function proxy(request: NextRequest) {
   if (!signedIn && !isPublic(pathname)) {
     const login = new URL("/log-ind", request.url);
     login.searchParams.set("next", pathname);
-    return NextResponse.redirect(login);
+    return withCsp(NextResponse.redirect(login));
   }
   if (signedIn && (pathname === "/log-ind" || pathname === "/opret-konto")) {
-    return NextResponse.redirect(new URL("/oversigt", request.url));
+    return withCsp(NextResponse.redirect(new URL("/oversigt", request.url)));
   }
   return response;
 }

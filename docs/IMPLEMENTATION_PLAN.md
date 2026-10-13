@@ -37,11 +37,14 @@ Landing, log ind, opret konto, glemt/ny adgangskode, onboarding (5 steps), Overs
 
 ## Phase 5: Production hardening ○
 
-- ○ Hosted Supabase project (EU region), Vercel or similar hosting, SMTP for auth mail
-- ○ Push repository to GitHub and enable the CI workflow
-- ○ Content-Security-Policy with nonces, error monitoring without PII
+- ○ SMTP for auth mail and a custom domain
+- ✓ Repository on GitHub (Maltheroi/Madro) with CI
+- ✓ Hosted Supabase project (EU) with schema and seed; Vercel deployment
+- ✓ Content-Security-Policy with nonces
+- ○ Error monitoring without PII
 - ○ Legal review of privacy policy and data-source attributions
-- ○ Accessibility audit (axe) in E2E, Lighthouse budget
+- ✓ Accessibility audit (axe, WCAG 2.1 AA) on 17 pages in E2E
+- ○ Lighthouse budget
 - ○ Replace approximate dev nutrition with Frida values and real recipes
 
 ## Later
