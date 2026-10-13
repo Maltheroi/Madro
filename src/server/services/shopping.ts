@@ -200,18 +200,43 @@ export async function calculateBasket(
               ${result.recommended?.checkoutTotalOre ?? null}, ${algorithmVersionId}, ${tx.json(result as never)}, ${now})
       returning id`;
     if (result.recommended) {
-      for (const l of result.recommended.lines) {
+      const { lines, unmatched } = result.recommended;
+      if (lines.length > 0) {
         await tx`
-          insert into public.shopping_basket_items (basket_id, user_id, ingredient_id, product_id, required, required_quantity, quantity_dimension,
-            packages, unit_price_ore, line_cost_ore, price_observation_id, price_status, match_quality)
-          values (${basket.id}, ${user.id}, ${l.ingredientId}, ${l.productId}, ${l.required}, ${l.requiredQuantity}, ${l.dimension},
-            ${l.packages}, ${l.unitPriceOre}, ${l.lineCostOre}, ${l.priceObservationId}, ${l.priceStatus}, ${l.matchQuality})`;
+          insert into public.shopping_basket_items ${tx(
+            lines.map((l) => ({
+              basket_id: basket.id,
+              user_id: user.id,
+              ingredient_id: l.ingredientId,
+              product_id: l.productId,
+              required: l.required,
+              required_quantity: l.requiredQuantity,
+              quantity_dimension: l.dimension,
+              packages: l.packages,
+              unit_price_ore: l.unitPriceOre,
+              line_cost_ore: l.lineCostOre,
+              price_observation_id: l.priceObservationId,
+              price_status: l.priceStatus,
+              match_quality: l.matchQuality,
+            })),
+          )}`;
       }
-      for (const u of result.recommended.unmatched) {
-        const item = items.find((i) => i.ingredientId === u.ingredientId)!;
+      if (unmatched.length > 0) {
         await tx`
-          insert into public.shopping_basket_items (basket_id, user_id, ingredient_id, required, required_quantity, quantity_dimension, unmatched_reason)
-          values (${basket.id}, ${user.id}, ${u.ingredientId}, ${u.required}, ${item.toBuy}, ${item.dimension}, ${u.reason})`;
+          insert into public.shopping_basket_items ${tx(
+            unmatched.map((u) => {
+              const item = items.find((i) => i.ingredientId === u.ingredientId)!;
+              return {
+                basket_id: basket.id,
+                user_id: user.id,
+                ingredient_id: u.ingredientId,
+                required: u.required,
+                required_quantity: item.toBuy,
+                quantity_dimension: item.dimension,
+                unmatched_reason: u.reason,
+              };
+            }),
+          )}`;
       }
     }
     return basket.id as string;
@@ -251,21 +276,47 @@ export async function createListFromBasket(
       insert into public.shopping_lists (user_id, meal_plan_id, basket_id, store_id, title, budget_ore)
       values (${user.id}, ${b.meal_plan_id}, ${basketId}, ${storeId}, ${`Indkøb hos ${basket.store.name}`}, ${b.budget_ore})
       returning id`;
+    const categoryOf = (id: string) => catalog.ingredients.get(id)?.category ?? "Andet";
     let pos = 0;
-    for (const l of basket.lines) {
-      const category = catalog.ingredients.get(l.ingredientId)?.category ?? "Andet";
+    if (basket.lines.length > 0) {
       await tx`
-        insert into public.shopping_list_items (list_id, user_id, ingredient_id, product_id, label, category, required_quantity_text, packages,
-          package_text, unit_price_ore, price_status, price_type, price_observed_at, offer_valid_to, required, position)
-        values (${list.id}, ${user.id}, ${l.ingredientId}, ${l.productId}, ${l.productName}, ${category},
-          ${`${l.ingredientName}: ${formatQuantity(l.requiredQuantity, l.dimension)}`}, ${l.packages}, ${formatPackage(l.packageQuantity, l.packageUnit)},
-          ${l.unitPriceOre}, ${l.priceStatus}, ${l.priceType}, ${l.observedAt}, ${l.priceType === "promotional" ? l.validTo : null}, ${l.required}, ${pos++})`;
+        insert into public.shopping_list_items ${tx(
+          basket.lines.map((l) => ({
+            list_id: list.id,
+            user_id: user.id,
+            ingredient_id: l.ingredientId,
+            product_id: l.productId,
+            label: l.productName,
+            category: categoryOf(l.ingredientId),
+            required_quantity_text: `${l.ingredientName}: ${formatQuantity(l.requiredQuantity, l.dimension)}`,
+            packages: l.packages,
+            package_text: formatPackage(l.packageQuantity, l.packageUnit),
+            unit_price_ore: l.unitPriceOre,
+            price_status: l.priceStatus,
+            price_type: l.priceType,
+            price_observed_at: l.observedAt,
+            offer_valid_to: l.priceType === "promotional" ? l.validTo : null,
+            required: l.required,
+            position: pos++,
+          })),
+        )}`;
     }
-    for (const u of basket.unmatched) {
-      const category = catalog.ingredients.get(u.ingredientId)?.category ?? "Andet";
+    if (basket.unmatched.length > 0) {
       await tx`
-        insert into public.shopping_list_items (list_id, user_id, ingredient_id, label, category, required_quantity_text, packages, required, unmatched, position)
-        values (${list.id}, ${user.id}, ${u.ingredientId}, ${u.ingredientName}, ${category}, ${u.ingredientName}, 1, ${u.required}, true, ${pos++})`;
+        insert into public.shopping_list_items ${tx(
+          basket.unmatched.map((u) => ({
+            list_id: list.id,
+            user_id: user.id,
+            ingredient_id: u.ingredientId,
+            label: u.ingredientName,
+            category: categoryOf(u.ingredientId),
+            required_quantity_text: u.ingredientName,
+            packages: 1,
+            required: u.required,
+            unmatched: true,
+            position: pos++,
+          })),
+        )}`;
     }
     return list.id as string;
   });

@@ -266,10 +266,21 @@ export async function generatePlan(
       insert into public.meal_plans (user_id, week_start, seed, algorithm_version_id, targets, validation)
       values (${user.id}, ${weekStart}, ${seed}, ${algorithmVersionId}, ${tx.json(targets as never)}, ${tx.json(validation as never)})
       returning id`;
-    for (const m of meals) {
+    if (meals.length > 0) {
       await tx`
-        insert into public.planned_meals (meal_plan_id, user_id, day_index, slot, slot_position, recipe_id, servings, household_servings, locked)
-        values (${plan.id}, ${user.id}, ${m.dayIndex}, ${m.slot}, ${m.slotPosition}, ${m.recipeId}, ${m.servings}, ${m.householdServings}, ${m.locked})`;
+        insert into public.planned_meals ${tx(
+          meals.map((m) => ({
+            meal_plan_id: plan.id,
+            user_id: user.id,
+            day_index: m.dayIndex,
+            slot: m.slot,
+            slot_position: m.slotPosition,
+            recipe_id: m.recipeId,
+            servings: m.servings,
+            household_servings: m.householdServings,
+            locked: m.locked,
+          })),
+        )}`;
     }
     return plan.id as string;
   });

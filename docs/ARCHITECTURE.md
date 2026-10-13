@@ -42,10 +42,17 @@ tests/                    db/ (RLS) and e2e/
 The browser never talks to the database. Pages and server actions call services, which use `withUser(userId, fn)` from `src/lib/database/db.ts`:
 
 1. open a transaction,
-2. `set_config('request.jwt.claims', {sub, role: 'authenticated'})` and `set local role authenticated`,
+2. set `request.jwt.claims` ({sub, role: 'authenticated'}) and the `authenticated` role in one statement,
 3. run the queries, which also filter on `user_id` explicitly.
 
 So every query is checked twice: by RLS in Postgres and by the explicit owner filter. The user id always comes from the verified session (`requireUser`), never from form input. `withService` (service role, bypasses RLS) is reserved for catalogue jobs. Account deletion uses the Supabase admin API with the service-role key on the server only.
+
+### Latency
+
+Without prepared statements (transaction pooler), every parameterised query costs two round trips to the database, and queries in one transaction run one after another. Page speed is therefore dominated by the distance between the server and the database: functions run in Vercel's `dub1` region (`vercel.json`), next to the Supabase project in eu-west-1. On top of that:
+
+- the shared catalogue (ingredients, nutrition, shared recipes, shared prices) is cached in memory per server instance for 5 minutes (`loadCatalog` in `src/server/services/catalog.ts`). Users with their own recipes or reported prices get a fresh load under RLS;
+- multi-row inserts are one statement (`tx(rows)`), not a loop.
 
 ## Nutrition engine
 

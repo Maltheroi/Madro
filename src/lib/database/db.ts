@@ -24,7 +24,7 @@ function getSql(): Sql {
   if (!globalForDb.__madroSql) {
     const env = getEnv();
     globalForDb.__madroSql = postgres(env.DATABASE_URL, {
-      max: 5,
+      max: 10,
       idle_timeout: 20,
       prepare: false,
       ssl: env.DATABASE_SSL === "require" ? "require" : false,
@@ -47,8 +47,10 @@ export async function withUser<T>(userId: string, fn: (tx: Tx) => Promise<T>): P
   if (!/^[0-9a-f-]{36}$/i.test(userId)) throw new Error("Invalid user id");
   const sql = getSql();
   return sql.begin(async (tx) => {
-    await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: userId, role: "authenticated" })}, true)`;
-    await tx`set local role authenticated`;
+    // Claims and role in one statement: each round trip to the database counts.
+    await tx`
+      select set_config('request.jwt.claims', ${JSON.stringify({ sub: userId, role: "authenticated" })}, true),
+             set_config('role', 'authenticated', true)`;
     return fn(tx);
   }) as Promise<T>;
 }

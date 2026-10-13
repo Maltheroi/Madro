@@ -1,5 +1,5 @@
 import "server-only";
-import type { Tx } from "@/lib/database/db";
+import { withService, type Tx } from "@/lib/database/db";
 import {
   calculateRecipeNutrition,
   type DataConfidence,
@@ -83,7 +83,14 @@ export interface Catalog {
 
 const DIET_ORDER = ["vegan", "vegetarian", "pescetarian"] as const;
 
-export async function loadPriceData(tx: Tx, now: Date): Promise<PriceData> {
+/** "visible": what the current user may see (RLS). "shared": only rows that belong to no user. */
+type Scope = "visible" | "shared";
+
+export async function loadPriceData(
+  tx: Tx,
+  now: Date,
+  scope: Scope = "visible",
+): Promise<PriceData> {
   const [stores, products, matches, observations] = await Promise.all([
     tx`select s.id, s.retailer_id, s.name, r.name as retailer_name, s.postal_code
        from public.stores s join public.retailers r on r.id = s.retailer_id where s.is_active`,
@@ -96,6 +103,7 @@ export async function loadPriceData(tx: Tx, now: Date): Promise<PriceData> {
          source_key, confidence, is_synthetic
        from public.price_observations
        where observed_at <= ${now} and (valid_to is null or valid_to >= ${now})
+         ${scope === "shared" ? tx`and reported_by is null` : tx``}
        order by product_id, coalesce(store_id::text, ''), price_type, coalesce(reported_by::text, ''), observed_at desc`,
   ]);
   return {
@@ -166,14 +174,52 @@ function cheapestUnitPrice(
   return best;
 }
 
+const SHARED_CATALOG_TTL_MS = 5 * 60_000;
+const catalogCache = globalThis as unknown as {
+  __madroSharedCatalog?: { loadedAt: number; catalog: Promise<Catalog> };
+};
+
+/**
+ * The shared catalogue (no user-owned recipes or user-reported prices), kept in
+ * memory for a few minutes per server instance. It changes only through seed
+ * and import jobs, and loading it costs a dozen database round trips.
+ */
+function sharedCatalog(): Promise<Catalog> {
+  const cached = catalogCache.__madroSharedCatalog;
+  if (cached && Date.now() - cached.loadedAt < SHARED_CATALOG_TTL_MS) return cached.catalog;
+  const catalog = withService((tx) => fetchCatalog(tx, new Date(), "shared"));
+  catalogCache.__madroSharedCatalog = { loadedAt: Date.now(), catalog };
+  catalog.catch(() => {
+    if (catalogCache.__madroSharedCatalog?.catalog === catalog) {
+      catalogCache.__madroSharedCatalog = undefined;
+    }
+  });
+  return catalog;
+}
+
+/**
+ * The catalogue as the current user sees it. Users without their own recipes
+ * or reported prices (almost everyone) get the cached shared catalogue; the
+ * rest get a fresh load under their RLS context.
+ */
 export async function loadCatalog(tx: Tx, now = new Date()): Promise<Catalog> {
+  const [{ has_own }] = await tx`
+    select exists (select 1 from public.recipes where owner_id = (select auth.uid()))
+        or exists (select 1 from public.price_observations where reported_by = (select auth.uid())) as has_own`;
+  return has_own ? fetchCatalog(tx, now, "visible") : sharedCatalog();
+}
+
+async function fetchCatalog(tx: Tx, now: Date, scope: Scope): Promise<Catalog> {
+  const shared = scope === "shared";
   const [ingRows, factRows, recipeRows, lineRows, prices] = await Promise.all([
     tx`select * from public.ingredients`,
     tx`select f.*, s.key as source_key, s.name as source_name, s.verification_status
        from public.nutrition_facts f join public.nutrition_sources s on s.id = f.source_id`,
-    tx`select * from public.recipes order by name_da`,
-    tx`select * from public.recipe_ingredients order by recipe_id, position`,
-    loadPriceData(tx, now),
+    tx`select * from public.recipes ${shared ? tx`where owner_id is null` : tx``} order by name_da`,
+    tx`select * from public.recipe_ingredients
+       ${shared ? tx`where recipe_id in (select id from public.recipes where owner_id is null)` : tx``}
+       order by recipe_id, position`,
+    loadPriceData(tx, now, scope),
   ]);
 
   const ingredients = new Map<string, CatalogIngredient>();
