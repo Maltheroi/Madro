@@ -3,7 +3,9 @@ import { withUser } from "@/lib/database/db";
 import type { SessionUser } from "@/server/auth";
 import type { MealSlot } from "@/features/meal-planning/domain/planner";
 import { calculateNutrition, type FoodState } from "@/features/nutrition/domain/recipe-nutrition";
+import { portionNutrition } from "@/features/products/domain/products";
 import { loadCatalog } from "./catalog";
+import { getProduct } from "./products";
 
 export interface DiaryEntry {
   id: string;
@@ -16,7 +18,7 @@ export interface DiaryEntry {
   proteinG: number;
   carbohydrateG: number;
   fatG: number;
-  source: "recipe" | "ingredient" | "manual" | "planned_meal";
+  source: "recipe" | "ingredient" | "manual" | "planned_meal" | "product";
 }
 
 const isoDate = (d: unknown) =>
@@ -73,7 +75,8 @@ type NewEntry =
       carbohydrateG: number;
       fatG: number;
     }
-  | { kind: "planned_meal"; date: string; plannedMealId: string };
+  | { kind: "planned_meal"; date: string; plannedMealId: string }
+  | { kind: "product"; date: string; slot: MealSlot | null; productId: string; grams: number };
 
 export class DiaryDataError extends Error {}
 
@@ -84,6 +87,25 @@ export async function addDiaryEntry(user: SessionUser, e: NewEntry): Promise<voi
       await tx`
         insert into public.food_diary_entries (user_id, entry_date, slot, description, energy_kcal, protein_g, carbohydrate_g, fat_g, source)
         values (${user.id}, ${e.date}, ${e.slot}, ${e.description}, ${e.energyKcal}, ${e.proteinG}, ${e.carbohydrateG}, ${e.fatG}, 'manual')`;
+      return;
+    }
+    if (e.kind === "product") {
+      const product = await getProduct(tx, user.id, e.productId);
+      if (!product) throw new DiaryDataError("Varen findes ikke.");
+      const n = portionNutrition(product, e.grams);
+      if (!n) {
+        throw new DiaryDataError(
+          "Varen mangler kalorier. Tilføj den som din egen vare med tal fra pakken.",
+        );
+      }
+      const description = (
+        product.brand ? `${product.name} (${product.brand})` : product.name
+      ).slice(0, 200);
+      await tx`
+        insert into public.food_diary_entries
+          (user_id, entry_date, slot, product_id, description, grams, energy_kcal, protein_g, carbohydrate_g, fat_g, source)
+        values (${user.id}, ${e.date}, ${e.slot}, ${product.id}, ${description}, ${e.grams},
+                ${n.energyKcal}, ${n.proteinG}, ${n.carbohydrateG}, ${n.fatG}, 'product')`;
       return;
     }
     const catalog = await loadCatalog(tx);

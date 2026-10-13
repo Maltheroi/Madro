@@ -160,6 +160,7 @@ export default async function DiaryPage({
                               {formatInt(e.energyKcal)} kcal · P {formatInt(e.proteinG)} g · K{" "}
                               {formatInt(e.carbohydrateG)} g · F {formatInt(e.fatG)} g
                               {e.source === "manual" ? " · manuelt indtastet" : ""}
+                              {e.source === "product" ? " · vare" : ""}
                             </p>
                           </div>
                           <DeleteEntryButton id={e.id} label={e.description} />

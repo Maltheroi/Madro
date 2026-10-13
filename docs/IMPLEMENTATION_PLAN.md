@@ -28,7 +28,7 @@ Landing, log ind, opret konto, glemt/ny adgangskode, onboarding (5 steps), Overs
 - ✓ Provider contracts and registry; admin status page
 - ✓ Open Food Facts v3 barcode adapter (parsing tested; needs User-Agent)
 - ✓ Manual price entry (private, estimated)
-- ○ OFF import job writing to a separate ODbL store, plus barcode lookup UI
+- ✓ Packaged products: barcode lookup and camera scan (BarcodeDetector, manual fallback), Danish product search, private user products, OFF import job writing to a separate ODbL table
 - ○ Frida 5.5 import (blocked on DTU licence confirmation)
 - ○ ShelfAtlas offers adapter and sync job (blocked on paid key)
 - ○ supermarkedspriser item-level adapter (blocked on API agreement)

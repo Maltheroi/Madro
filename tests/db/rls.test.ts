@@ -215,3 +215,60 @@ describe("row level security", () => {
     expect(rows.length + profiles.length).toBe(0);
   });
 });
+
+describe("packaged products", () => {
+  it("provider products are shared, user products are private", async () => {
+    await sql`insert into public.packaged_products (source_key, code, gtin, name, data_quality, energy_kcal)
+              values ('open-food-facts', '5700000000001', '5700000000001', 'Testmælk', 'partial', 46)`;
+    const seen = await asUser(alice, async (tx) => {
+      await tx`insert into public.packaged_products (source_key, code, name, data_quality, energy_kcal, created_by)
+               values ('user', 'eget-1', 'Alices bolle', 'minimal', 300, ${alice})`;
+      const own = await tx`select name from public.packaged_products order by name`;
+      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: bob })}, true)`;
+      const bobs = await tx`select name from public.packaged_products order by name`;
+      return { own: own.map((r) => r.name), bobs: bobs.map((r) => r.name) };
+    });
+    expect(seen.own).toEqual(["Alices bolle", "Testmælk"]);
+    expect(seen.bobs).toEqual(["Testmælk"]);
+    await sql`delete from public.packaged_products where code = '5700000000001'`;
+  });
+
+  it("users cannot write provider products or products for others", async () => {
+    await expect(
+      asUser(
+        alice,
+        (tx) =>
+          tx`insert into public.packaged_products (source_key, code, name, data_quality) values ('open-food-facts', '1', 'Falsk', 'minimal')`,
+      ),
+    ).rejects.toThrow();
+    await expect(
+      asUser(
+        alice,
+        (tx) =>
+          tx`insert into public.packaged_products (source_key, code, name, data_quality, created_by) values ('user', '1', 'Falsk', 'minimal', ${bob})`,
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it("anon has no access", async () => {
+    await expect(
+      sql.begin(async (tx) => {
+        await tx`set local role anon`;
+        return tx`select 1 from public.packaged_products limit 1`;
+      }),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it("diary entries accept the product source", async () => {
+    const [{ id }] =
+      await sql`insert into public.packaged_products (source_key, code, name, data_quality, energy_kcal)
+                               values ('open-food-facts', '5700000000002', 'Testyoghurt', 'complete', 60) returning id`;
+    const rows = await asUser(alice, async (tx) => {
+      await tx`insert into public.food_diary_entries (user_id, entry_date, slot, source, product_id, description, grams, energy_kcal)
+               values (${alice}, '2026-10-13', 'breakfast', 'product', ${id}, 'Testyoghurt', 150, 90)`;
+      return tx`select source, product_id from public.food_diary_entries where user_id = ${alice}`;
+    });
+    expect(rows).toEqual([{ source: "product", product_id: id }]);
+    await sql`delete from public.packaged_products where id = ${id}`;
+  });
+});

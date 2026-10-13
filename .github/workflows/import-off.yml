@@ -1,0 +1,33 @@
+name: Import Open Food Facts (Danmark)
+
+# Run manually from the Actions tab. Needs two repository secrets:
+#   DATABASE_URL                 Supabase session pooler URL (owner role)
+#   OPEN_FOOD_FACTS_USER_AGENT   e.g. "Madro/1.0 (din@email.dk)"
+on:
+  workflow_dispatch:
+    inputs:
+      max_pages:
+        description: "Max sider à 100 varer (tom = alle)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  import:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Import
+        run: npx tsx scripts/import-off-denmark.ts ${MAX_PAGES:+--max-pages=$MAX_PAGES}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OPEN_FOOD_FACTS_USER_AGENT: ${{ secrets.OPEN_FOOD_FACTS_USER_AGENT }}
+          MAX_PAGES: ${{ inputs.max_pages }}

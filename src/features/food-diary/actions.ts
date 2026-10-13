@@ -48,6 +48,13 @@ const schemas = {
     carbohydrateG: optionalDanishNumber({ min: 0, max: 800, label: "kulhydrat" }),
     fatG: optionalDanishNumber({ min: 0, max: 400, label: "fedt" }),
   }),
+  product: z.object({
+    kind: z.literal("product"),
+    date: isoDate,
+    slot,
+    productId: z.uuid({ error: "Vælg en vare." }),
+    grams: danishNumber({ min: 1, max: 3000, label: "mængde" }),
+  }),
   planned_meal: z.object({
     kind: z.literal("planned_meal"),
     date: isoDate,

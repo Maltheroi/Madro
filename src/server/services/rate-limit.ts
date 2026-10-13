@@ -14,6 +14,7 @@ export const LIMITS = {
   dataExport: { action: "data_export", limit: 5, windowSeconds: 3600 },
   aiRequest: { action: "ai_request", limit: 20, windowSeconds: 3600 },
   recommendation: { action: "calorie_recommendation", limit: 20, windowSeconds: 3600 },
+  barcodeLookup: { action: "barcode_lookup", limit: 60, windowSeconds: 3600 },
 } as const;
 
 export async function enforceRateLimit(

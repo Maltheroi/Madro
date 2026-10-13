@@ -10,13 +10,15 @@ import { FormField } from "@/components/form-field";
 import { SubmitButton } from "@/components/submit-button";
 import { MEAL_SLOT_LABELS_DA, MEAL_SLOTS } from "@/features/meal-planning/domain/planner";
 import type { ActionResult } from "@/lib/validation/common";
+import { ProductPanel } from "@/features/products/product-panel";
 import { addEntryAction, deleteEntryAction, setDayCompleteAction } from "./actions";
 
-type Tab = "plan" | "recipe" | "ingredient" | "manual";
+type Tab = "plan" | "product" | "recipe" | "ingredient" | "manual";
 const TABS: [Tab, string][] = [
-  ["plan", "Fra madplan"],
+  ["plan", "Madplan"],
+  ["product", "Vare"],
   ["recipe", "Opskrift"],
-  ["ingredient", "Fødevare"],
+  ["ingredient", "Råvare"],
   ["manual", "Manuelt"],
 ];
 
@@ -66,7 +68,7 @@ export function AddEntryPanel({
       <div
         role="tablist"
         aria-label="Registreringstype"
-        className="bg-muted grid grid-cols-4 gap-1 rounded-lg p-1"
+        className="bg-muted grid grid-cols-5 gap-1 rounded-lg p-1"
       >
         {TABS.map(([key, label]) => (
           <button
@@ -75,7 +77,7 @@ export function AddEntryPanel({
             type="button"
             aria-selected={tab === key}
             onClick={() => setTab(key)}
-            className={`rounded-md px-2 py-2 text-sm ${tab === key ? "bg-card font-medium shadow-xs" : "text-muted-foreground"}`}
+            className={`rounded-md px-1 py-2 text-xs sm:text-sm ${tab === key ? "bg-card font-medium shadow-xs" : "text-muted-foreground"}`}
           >
             {label}
           </button>
@@ -114,6 +116,8 @@ export function AddEntryPanel({
           ))}
         </div>
       )}
+
+      {tab === "product" && <ProductPanel date={date} action={action} state={state} />}
 
       {tab === "recipe" && (
         <form role="tabpanel" action={action} className="grid gap-3">
