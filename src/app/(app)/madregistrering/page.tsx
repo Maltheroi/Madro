@@ -80,7 +80,11 @@ export default async function DiaryPage({
   const ingredients = [...planData.catalog.ingredients.values()]
     .filter((i) => i.facts.length > 0)
     .sort((a, b) => a.nameDa.localeCompare(b.nameDa, "da"))
-    .map((i) => ({ id: i.ingredientId, name: i.nameDa, states: i.facts.map((f) => f.state) }));
+    .map((i) => ({
+      id: i.ingredientId,
+      name: i.nameDa,
+      states: [...new Set(i.facts.map((f) => f.state))],
+    }));
 
   const macro = (label: string, value: number, target: number | undefined, unit: string) => (
     <div className="grid gap-1">

@@ -1,6 +1,8 @@
 import "server-only";
 import { getEnv } from "@/lib/env";
 import { openFoodFactsInfo } from "./open-food-facts";
+import { sallingInfo } from "./salling-food-waste";
+import { shelfAtlasInfo } from "./shelfatlas";
 import type { ProviderInfo } from "./types";
 
 /**
@@ -8,7 +10,7 @@ import type { ProviderInfo } from "./types";
  * marked "awaiting_agreement" have no adapter calling them: they need a licence
  * or contract first (see docs/DATA_SOURCES.md). Nothing here scrapes.
  */
-export function listProviders(): ProviderInfo[] {
+export function listProviders(opts: { offersSyncedAt?: Date | null } = {}): ProviderInfo[] {
   const env = getEnv();
   return [
     {
@@ -33,46 +35,28 @@ export function listProviders(): ProviderInfo[] {
       kinds: ["nutrition"],
       status: "fixture",
       licence: "Omtrentlige værdier",
-      note: "98 fødevarer og 80 opskrifter med omtrentligt næringsindhold. Skal erstattes af Frida-data før lancering.",
+      note: "Omtrentlige værdier for de fødevarer, der ikke har et godt match i Frida (fx kyllingebryst uden skind og krydderipastaer).",
     },
     openFoodFactsInfo(env.OPEN_FOOD_FACTS_USER_AGENT),
     {
       key: "frida",
-      name: "Frida (DTU Fødevareinstituttet)",
+      name: "Frida 5.5 (DTU Fødevareinstituttet)",
       kinds: ["nutrition"],
-      status: "awaiting_agreement",
-      licence: "Ikke bekræftet",
-      note: "Officiel dansk fødevaredatabase. Licens til kommerciel brug skal bekræftes skriftligt af DTU før import.",
-      docsUrl: "https://frida.fooddata.dk/",
+      status: "active",
+      licence: "CC BY 4.0",
+      note: "Officiel dansk fødevaredatabase. 80 af katalogets fødevarer bruger Frida-værdier; resten har stadig omtrentlige udviklingsværdier. Opdateres med scripts/frida-extract.py.",
+      docsUrl: "https://doi.org/10.11583/DTU.29500682",
     },
     {
       key: "supermarkedspriser",
       name: "supermarkedspriser.dk",
       kinds: ["retailer_price"],
       status: "awaiting_agreement",
-      licence: "CC BY 4.0 for kurvdata; API efter aftale",
-      note: "Daglige kurvpriser er åbne. Priser pr. vare kræver API-nøgle efter aftale.",
-      docsUrl: "https://supermarkedspriser.dk/",
+      licence: "Pris-API kun efter individuel aftale",
+      note: "Priser pr. vare kræver en nøgle efter aftale, og der udstedes som udgangspunkt ikke nye nøgler (læst 13.10.2026). Bruges ikke.",
+      docsUrl: "https://supermarkedspriser.dk/api",
     },
-    {
-      key: "shelfatlas",
-      name: "ShelfAtlas",
-      kinds: ["promotional_offer", "retailer_price"],
-      status: "awaiting_agreement",
-      licence: "Kommerciel (Standard 649 kr./md.)",
-      note: "Tilbudsaviser via REST-API. Gratis niveau er kun til personlig brug.",
-      docsUrl: "https://shelfatlas.com/",
-      requiredEnv: ["SHELFATLAS_API_KEY"],
-    },
-    {
-      key: "salling-group",
-      name: "Salling Group API",
-      kinds: ["store_availability"],
-      status: "awaiting_agreement",
-      licence: "Salling Group udviklervilkår",
-      note: "Butikker og madspild-tilbud for Netto, føtex og Bilka. Ingen offentlig hyldepris-API.",
-      docsUrl: "https://developer.sallinggroup.dev/",
-      requiredEnv: ["SALLING_API_KEY"],
-    },
+    shelfAtlasInfo(opts.offersSyncedAt ?? null),
+    sallingInfo(env.SALLING_API_KEY),
   ];
 }

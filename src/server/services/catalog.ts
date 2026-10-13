@@ -270,6 +270,16 @@ async function fetchCatalog(tx: Tx, now: Date, scope: Scope): Promise<Catalog> {
     }
   }
 
+  // Best source first: every consumer takes the first facts for a state, so
+  // verified Frida values win over approximate development values.
+  const rank: Record<DataConfidence, number> = { high: 0, medium: 1, low: 2 };
+  for (const ing of ingredients.values()) {
+    ing.facts.sort((a, b) => rank[a.confidence] - rank[b.confidence]);
+    ing.sources.sort(
+      (a, b) => Number(b.verification === "verified") - Number(a.verification === "verified"),
+    );
+  }
+
   const linesByRecipe = new Map<string, (typeof lineRows)[number][]>();
   for (const l of lineRows) {
     const arr = linesByRecipe.get(l.recipe_id) ?? [];

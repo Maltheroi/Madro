@@ -10,7 +10,10 @@ How the app gets nutrition, product and price data, and what each source allows.
 | Synthetic prices for "Demo Nord/Syd/Vest (syntetisk)" | same seed | **Fixture.** `price_observations.is_synthetic = true`; the UI always shows the "Testpriser" notice and never calls these prices real. Real Danish chains exist only as reference rows with no prices. |
 | User-entered prices | `addManualPrice` in `src/server/services/shopping.ts` | **Active.** Private to the reporter (RLS), status `estimated`. |
 | Open Food Facts v3 | `src/server/providers/open-food-facts.ts` | **Implemented.** Barcode lookups (cached in `packaged_products`) when `OPEN_FOOD_FACTS_USER_AGENT` is set. Danish products are imported from the official bulk export (gzipped CSV, filtered on countries = Denmark) by `scripts/import-off-denmark.ts`, run as the GitHub Actions workflow "Import Open Food Facts (Danmark)". The search API returned 503 for bulk paging, and OFF asks bulk users to use the export. Rows keep `source_key`, licence and source URL; the UI labels them "Ikke verificeret" with an ODbL link. Users can add private products (`source_key 'user'`). |
-| Frida, supermarkedspriser, ShelfAtlas, Salling | `src/server/providers/registry.ts` | **Awaiting agreement.** Listed on `/admin/datakilder`; no adapter calls them. |
+| ShelfAtlas (Free plan, personal use) | `src/server/providers/shelfatlas.ts`, `scripts/sync-shelfatlas-offers.ts` | **Implemented.** GitHub Actions workflow "Synkroniser tilbud (ShelfAtlas)" runs Monday and Thursday and writes current leaflet offers to `promotional_offers` (source_key `shelfatlas`). About 35 requests per full run; the free plan allows 1,000 a month. Shown on `/indkobsliste/tilbud` as "Tilbudspris", with validity dates and the ShelfAtlas source. Offers are matched to this week's shopping needs by name only (`src/features/offers/domain/match.ts`) and are **not** used by the basket optimizer. |
+| Salling Group Anti Food Waste | `src/server/providers/salling-food-waste.ts` | **Implemented.** Live lookup by the user's postal code when `SALLING_API_KEY` is set, cached in memory for 30 minutes (quota 100 requests a day). Nothing is stored in the database. Shown on `/indkobsliste/madspild`. |
+| Frida 5.5 (DTU) | `supabase/seed-data/frida-map.mjs`, `scripts/frida-extract.py`, `scripts/frida-sql.mjs` | **Active (CC BY 4.0).** 80 of 98 catalogue ingredients have Frida values (confidence `high`, source `frida`), mapped by hand to close matches only. Energy and carbohydrate use Frida's labelling parameters. The rest keep the approximate development values. The catalogue uses the highest-confidence facts first. Attribution is shown on recipe pages. To update: download the workbook from doi:10.11583/DTU.29500682, run `python3 scripts/frida-extract.py <xlsx>`, then `node scripts/generate-seed.mjs` and `node scripts/frida-sql.mjs` for a new migration. |
+| supermarkedspriser.dk | `src/server/providers/registry.ts` | **Not used.** Item-level API only by individual agreement, and no new keys are being issued (read 2026-10-13). |
 
 Provider contracts live in `src/server/providers/types.ts` (`ProductCatalogProvider`, `RetailerPriceProvider`, `PromotionalOfferProvider`, `StoreAvailabilityProvider`). A new source implements one of them and writes immutable rows to `price_observations` (or `nutrition_facts`) with its own `source_key`. Freshness thresholds are in `src/features/grocery-pricing/domain/prices.ts` (shelf 72 h, online 48 h, promotional 7 days, manual 30 days).
 
@@ -20,6 +23,22 @@ Rules the code enforces:
 - Promotional prices are used only within their validity window.
 - AI never supplies nutrition or prices (see `src/server/ai/substitutions.ts`).
 - Nothing scrapes retailer sites.
+
+---
+
+# Update 2026-10-13: personal use, free sources only
+
+Madro is now for the owner's personal use only, so free and personal-use plans are acceptable. Each source's terms still apply. Read 2026-10-13.
+
+| Source | What it gives | Terms that matter here | Decision |
+|---|---|---|---|
+| **Frida 5.5** | Official Danish nutrient data, >1,000 foods | The Figshare record for doi:10.11583/DTU.29500682 lists `Frida_5.5_Dataset.xlsx` and `.ods` as **CC BY 4.0** (the PDFs are © DTU). Attribution: "Marija Langwagen, Jette Jacobsen, Tue Christensen and Anders Poulsen: The Danish Food Composition Database, Frida version 5.5, November 2025, National Food Institute, Technical University of Denmark. https://doi.org/10.11583/DTU.29500682" [V-official https://api.figshare.com/v2/articles/29500682] | **Use.** Import into `nutrition_facts` with source `frida`. This supersedes the "Unverified" licence in A1. |
+| **ShelfAtlas Free** | Leaflet/campaign offers for ~20 chains | "The Free and Hobby plans are for personal, non-commercial use by an individual." 1,000 requests a month, 60 a minute. Caching allowed "where your use case allows"; no redistribution of raw bulk data; don't misrepresent the origin; one account, key kept private. Only campaign prices in the public API [V-official https://shelfatlas.com/legal/terms, /legal/acceptable-use, /docs/openapi.json] | **Use** for offers. Must move to Standard (649 kr./md.) if Madro is ever used commercially. |
+| **Salling Group Anti Food Waste** | Marked-down short-dated items per store (Netto, føtex, Bilka, Basalt) | Free (§4.1). Data only shown in the app, "loyally reproduced", not changed or transferred (§3.2–3.3), deleted within a month (§3.5), no personal data (§3.6). Quota 100 requests a day; spike protection [V-official Developer Program Terms v1.0 PDF and developer.sallinggroup.dev API reference] | **Use**, live lookups only, no storage. |
+| **supermarkedspriser.dk API** | Item-level shelf prices | "adgang kræver en nøgle, som jeg kun udsteder efter individuel aftale. Der udstedes som udgangspunkt ikke nye nøgler i øjeblikket." Cache at most 24 h; no redistribution [V-official https://supermarkedspriser.dk/api] | **Not available.** The open CC BY basket files cover few items per chain (e.g. 2–42 of 100 on 1 Oct 2026) and are not used. |
+| **Open Food Facts** | Packaged products by barcode | Unchanged (ODbL, see A2) | **Use** (already integrated). |
+
+There is still no free, legitimate source of everyday shelf prices per item for Danish chains. Shelf prices come from what the user types in (`Indtast priser`).
 
 ---
 

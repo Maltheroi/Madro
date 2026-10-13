@@ -96,7 +96,8 @@ export default async function RecipePage({
   const sources = [
     ...new Map(
       recipe.lines
-        .flatMap((l) => catalog.ingredients.get(l.ingredientId)?.sources ?? [])
+        // The first source is the one the calculation uses (verified sources first).
+        .flatMap((l) => catalog.ingredients.get(l.ingredientId)?.sources.slice(0, 1) ?? [])
         .map((s) => [s.key, s]),
     ).values(),
   ];
@@ -197,6 +198,21 @@ export default async function RecipePage({
             <p className="text-muted-foreground mt-3 text-xs">
               Beregnet ud fra de faktiske ingrediensmængder. Kilder:{" "}
               {sources.map((s) => s.name).join(", ") || "ingen"}.
+              {sources.some((s) => s.key === "frida") ? (
+                <>
+                  {" "}
+                  Frida: © Fødevaredata (frida.fooddata.dk), version 5.5, DTU Fødevareinstituttet,{" "}
+                  <a
+                    href="https://doi.org/10.11583/DTU.29500682"
+                    className="underline"
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    CC BY 4.0
+                  </a>
+                  .
+                </>
+              ) : null}
             </p>
             {recipe.allergens.length > 0 ? (
               <p className="mt-3 text-sm">

@@ -26,19 +26,21 @@ export default async function DataSourcesPage() {
   const data = await withUser(user.id, async (tx) => {
     const [[admin]] = await Promise.all([tx`select public.is_admin() as a`]);
     if (!admin?.a) return null;
-    const [jobs, prices, sources] = await Promise.all([
+    const [jobs, prices, sources, [offerSync]] = await Promise.all([
       tx`select provider_key, job_type, status, started_at, finished_at, records_seen, records_written, error_message
          from public.data_sync_jobs order by created_at desc limit 20`,
       tx`select source_key, is_synthetic, price_type, count(*)::int as n, max(observed_at) as latest
          from public.price_observations where reported_by is null group by 1, 2, 3 order by 1, 3`,
       tx`select s.key, s.name, s.verification_status, s.version, count(f.id)::int as facts
          from public.nutrition_sources s left join public.nutrition_facts f on f.source_id = s.id group by s.id order by s.key`,
+      tx`select max(finished_at) as at from public.data_sync_jobs
+         where provider_key = 'shelfatlas' and status = 'succeeded'`,
     ]);
-    return { jobs, prices, sources };
+    return { jobs, prices, sources, offersSyncedAt: (offerSync?.at as Date | null) ?? null };
   });
   // Non-admins get a 404 rather than a hint that the page exists.
   if (!data) notFound();
-  const providers = listProviders();
+  const providers = listProviders({ offersSyncedAt: data.offersSyncedAt });
 
   return (
     <>
