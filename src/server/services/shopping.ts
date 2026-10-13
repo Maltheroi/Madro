@@ -3,8 +3,10 @@ import { withUser, type Tx } from "@/lib/database/db";
 import type { SessionUser } from "@/server/auth";
 import {
   consolidateIngredients,
+  normalise,
   type RequiredItem,
 } from "@/features/shopping-list/domain/consolidate";
+import type { BasketCostModel, PackageOption } from "@/features/meal-planning/domain/basket-cost";
 import {
   BASKET_OPTIMIZER_ALGORITHM,
   optimizeBasket,
@@ -12,8 +14,17 @@ import {
   type OptimizeResult,
   type Store,
 } from "@/features/basket-optimization/domain/optimizer";
-import type { PriceStatus, PriceType } from "@/features/grocery-pricing/domain/prices";
-import { UNIT_LABELS_DA, type Unit } from "@/features/nutrition/domain/units";
+import {
+  effectivePrice,
+  type PriceStatus,
+  type PriceType,
+} from "@/features/grocery-pricing/domain/prices";
+import {
+  convert,
+  UNIT_LABELS_DA,
+  type Dimension,
+  type Unit,
+} from "@/features/nutrition/domain/units";
 import { formatInt } from "@/lib/format";
 import { getAlgorithmVersionId, getProfile } from "@/server/repositories/profile";
 import { loadCatalog, type Catalog } from "./catalog";
@@ -45,18 +56,14 @@ async function activePlan(tx: Tx, userId: string) {
   };
 }
 
-async function pantryFor(tx: Tx, userId: string) {
+export async function pantryFor(tx: Tx, userId: string) {
   return tx`select p.id, p.ingredient_id, i.name_da, p.quantity, p.unit, p.confirmed_at, p.expires_on
             from public.pantry_items p join public.ingredients i on i.id = p.ingredient_id
             where p.user_id = ${userId} order by i.name_da`;
 }
 
-function requiredItemsFor(
-  plan: NonNullable<Awaited<ReturnType<typeof activePlan>>>,
-  catalog: Catalog,
-  pantry: Awaited<ReturnType<typeof pantryFor>>,
-): RequiredItem[] {
-  const recipes = new Map(
+function shoppingRecipes(catalog: Catalog) {
+  return new Map(
     catalog.recipes.map((r) => [
       r.id,
       {
@@ -71,7 +78,10 @@ function requiredItemsFor(
       },
     ]),
   );
-  const infos = new Map(
+}
+
+function ingredientInfos(catalog: Catalog) {
+  return new Map(
     [...catalog.ingredients.values()].map((i) => [
       i.ingredientId,
       {
@@ -83,14 +93,91 @@ function requiredItemsFor(
       },
     ]),
   );
+}
+
+function requiredItemsFor(
+  plan: { meals: { recipeId: string; householdServings: number }[] },
+  catalog: Catalog,
+  pantry: Awaited<ReturnType<typeof pantryFor>>,
+): RequiredItem[] {
   return consolidateIngredients(
     plan.meals,
-    recipes,
-    infos,
+    shoppingRecipes(catalog),
+    ingredientInfos(catalog),
     pantry
       .filter((p) => p.quantity > 0)
       .map((p) => ({ ingredientId: p.ingredient_id, quantity: p.quantity, unit: p.unit })),
   );
+}
+
+const BASE_UNIT: Record<Dimension, Unit> = { mass: "g", volume: "ml", count: "stk" };
+
+/**
+ * Whole-package cost model for the meal planner's budget search: per-serving
+ * ingredient amounts, pantry stock and each store's priced package options,
+ * keyed the same way the shopping list consolidates ingredients.
+ */
+export function basketCostModel(
+  catalog: Catalog,
+  pantry: Awaited<ReturnType<typeof pantryFor>>,
+  stores: Store[],
+  allergens: string[],
+  now: Date,
+): BasketCostModel {
+  const recipes = shoppingRecipes(catalog);
+  const infos = ingredientInfos(catalog);
+  const needsPerServing = new Map<string, Map<string, number>>();
+  for (const r of recipes.values()) {
+    const items = consolidateIngredients(
+      [{ recipeId: r.id, householdServings: 1 }],
+      recipes,
+      infos,
+    );
+    needsPerServing.set(
+      r.id,
+      new Map(items.map((i) => [`${i.ingredientId}:${i.dimension}`, i.quantity])),
+    );
+  }
+  const pantryMap = new Map<string, number>();
+  for (const p of pantry) {
+    if (!(p.quantity > 0)) continue;
+    const { dimension, value } = normalise(p.quantity, p.unit, infos.get(p.ingredient_id));
+    const key = `${p.ingredient_id}:${dimension}`;
+    pantryMap.set(key, (pantryMap.get(key) ?? 0) + value);
+  }
+  const products = new Map(catalog.prices.products.map((p) => [p.id, p]));
+  const storeOptions = stores.map((store) => {
+    const options = new Map<string, PackageOption[]>();
+    for (const m of catalog.prices.matches) {
+      const product = products.get(m.productId);
+      if (!product || product.retailerId !== store.retailerId) continue;
+      if (m.allergens.some((a) => allergens.includes(a))) continue;
+      const price = effectivePrice(
+        catalog.prices.observations,
+        product.id,
+        store.id,
+        store.retailerId,
+        now,
+      );
+      if (!price) continue;
+      const meta = catalog.ingredients.get(m.ingredientId) ?? {};
+      for (const dimension of ["mass", "volume", "count"] as const) {
+        const size = convert(
+          product.packageQuantity,
+          product.packageUnit,
+          BASE_UNIT[dimension],
+          meta,
+        );
+        if (size === null || size <= 0) continue;
+        const key = `${m.ingredientId}:${dimension}`;
+        const list = options.get(key) ?? [];
+        list.push({ size, priceOre: price.observation.priceOre });
+        options.set(key, list);
+      }
+    }
+    return options;
+  });
+  return { needsPerServing, stores: storeOptions, pantry: pantryMap };
 }
 
 /** The consolidated ingredient list for this week's plan (no prices). */
@@ -113,6 +200,72 @@ export function formatQuantity(quantity: number, dimension: RequiredItem["dimens
 
 export function formatPackage(q: number, unit: Unit): string {
   return `${String(q).replace(".", ",")} ${UNIT_LABELS_DA[unit]}`;
+}
+
+function basketInput(
+  items: RequiredItem[],
+  catalog: Catalog,
+  stores: Store[],
+  allergens: string[],
+  now: Date,
+  opts: { mode: OptimizationMode; budgetOre: number | null; allowSubstitutes: boolean },
+) {
+  return {
+    items,
+    stores,
+    products: catalog.prices.products,
+    matches: catalog.prices.matches,
+    observations: catalog.prices.observations,
+    ingredients: new Map(
+      [...catalog.ingredients.values()].map((i) => [
+        i.ingredientId,
+        {
+          id: i.ingredientId,
+          shelfStable: i.shelfStable,
+          densityGPerMl: i.densityGPerMl,
+          gramsPerPiece: i.gramsPerPiece,
+        },
+      ]),
+    ),
+    userAllergens: allergens,
+    now,
+    ...opts,
+  };
+}
+
+/** The user's stores for basket calculations (one per retailer, near their postal code). */
+export async function storesFor(tx: Tx, catalog: Catalog, postalCode: string | null) {
+  const rows = await tx`select id, postal_code from public.stores`;
+  return chooseStores(
+    catalog,
+    postalCode,
+    new Map(rows.map((s) => [s.id as string, s.postal_code as string | null])),
+  );
+}
+
+/**
+ * Checkout total of the cheapest complete basket (any store) for a set of planned meals
+ * (whole packages, pantry subtracted), or null when no store has prices for
+ * everything. Used by the meal planner to aim the plan at the weekly budget.
+ */
+export function basketTotalFor(
+  meals: { recipeId: string; householdServings: number }[],
+  catalog: Catalog,
+  pantry: Awaited<ReturnType<typeof pantryFor>>,
+  stores: Store[],
+  allergens: string[],
+  now: Date,
+): number | null {
+  const items = requiredItemsFor({ meals }, catalog, pantry);
+  const result = optimizeBasket(
+    basketInput(items, catalog, stores, allergens, now, {
+      mode: "best_value",
+      budgetOre: null,
+      allowSubstitutes: true,
+    }),
+  );
+  const totals = result.baskets.filter((b) => b.complete).map((b) => b.checkoutTotalOre);
+  return totals.length > 0 ? Math.min(...totals) : null;
 }
 
 /** Choose one store per retailer: one in the user's postal code if known, else the first. */
@@ -159,36 +312,20 @@ export async function calculateBasket(
       getProfile(tx, user.id),
       tx`select id, postal_code from public.stores`,
     ]);
-    const items = requiredItemsFor(plan, catalog, pantry);
     const stores = chooseStores(
       catalog,
       profile?.postalCode ?? null,
       new Map(storeRows.map((s) => [s.id as string, s.postal_code as string | null])),
     );
     const budgetOre = profile?.weeklyBudgetOre ?? null;
-    const result = optimizeBasket({
-      items,
-      stores,
-      products: catalog.prices.products,
-      matches: catalog.prices.matches,
-      observations: catalog.prices.observations,
-      ingredients: new Map(
-        [...catalog.ingredients.values()].map((i) => [
-          i.ingredientId,
-          {
-            id: i.ingredientId,
-            shelfStable: i.shelfStable,
-            densityGPerMl: i.densityGPerMl,
-            gramsPerPiece: i.gramsPerPiece,
-          },
-        ]),
-      ),
-      userAllergens: profile?.allergens ?? [],
-      mode: opts.mode === "strict_budget" && budgetOre !== null ? "strict_budget" : "best_value",
-      budgetOre,
-      allowSubstitutes: opts.allowSubstitutes,
-      now,
-    });
+    const items = requiredItemsFor(plan, catalog, pantry);
+    const result = optimizeBasket(
+      basketInput(items, catalog, stores, profile?.allergens ?? [], now, {
+        mode: opts.mode === "strict_budget" && budgetOre !== null ? "strict_budget" : "best_value",
+        budgetOre,
+        allowSubstitutes: opts.allowSubstitutes,
+      }),
+    );
     const algorithmVersionId = await getAlgorithmVersionId(
       tx,
       BASKET_OPTIMIZER_ALGORITHM.key,

@@ -1,6 +1,6 @@
 import "server-only";
 import { withUser, type Tx } from "@/lib/database/db";
-import { mondayOf, todayInCopenhagen } from "@/lib/format";
+import { formatKr, mondayOf, todayInCopenhagen } from "@/lib/format";
 import {
   DEFAULT_TOLERANCES,
   generateMealPlan,
@@ -10,6 +10,7 @@ import {
   slotsForMealsPerDay,
   validateDay,
   type DailyTargets,
+  type MealPlanResult,
   type MealSlot,
   type Tolerances,
   type Violation,
@@ -24,6 +25,8 @@ import {
 } from "@/server/repositories/profile";
 import { loadCatalog, resolveIngredientTerms, toPlannerRecipe, type Catalog } from "./catalog";
 import { enforceRateLimit, LIMITS } from "./rate-limit";
+import { basketCostModel, basketTotalFor, pantryFor, storesFor } from "./shopping";
+import { planTowardsBudget } from "@/features/meal-planning/domain/budget";
 
 export interface PlannedMealView {
   id: string;
@@ -52,6 +55,8 @@ export interface PlanValidation {
   warnings: string[];
   estimatedCostOre: number | null;
   unknownCostMeals: number;
+  /** Cheapest complete basket (whole packages) when the plan was made; dropped after edits. */
+  basketEstimateOre?: number | null;
 }
 
 export function targetsFromGoal(goal: NutritionGoal): DailyTargets {
@@ -195,12 +200,13 @@ export async function generatePlan(
   const weekStart = opts.weekStart ?? currentWeekStart();
   return withUser(user.id, async (tx) => {
     await enforceRateLimit(tx, LIMITS.mealPlanGenerate);
-    const [profile, goal, catalog, favorites, existing] = await Promise.all([
+    const [profile, goal, catalog, favorites, existing, pantry] = await Promise.all([
       getProfile(tx, user.id),
       getActiveGoal(tx, user.id),
       loadCatalog(tx),
       tx`select recipe_id from public.recipe_favorites where user_id = ${user.id}`,
       loadPlan(tx, user.id, weekStart),
+      pantryFor(tx, user.id),
     ]);
     if (!profile || !goal)
       throw new Error("Profil og mål skal være udfyldt, før der kan laves en madplan.");
@@ -220,14 +226,44 @@ export async function generatePlan(
             }))
         : [];
     const seed = Math.floor(Math.random() * 2 ** 31);
-    const result = generateMealPlan({
-      recipes: catalog.recipes.map(toPlannerRecipe),
-      constraints,
-      targets,
-      tolerances,
-      locked,
-      seed,
-    });
+    const recipes = catalog.recipes.map(toPlannerRecipe);
+    let result: MealPlanResult;
+    let basketEstimateOre: number | null = null;
+    const budgetWarnings: string[] = [];
+    if (profile.weeklyBudgetOre) {
+      const now = new Date();
+      const stores = await storesFor(tx, catalog, profile.postalCode);
+      const basket = basketCostModel(catalog, pantry, stores, profile.allergens, now);
+      ({ result, basketTotalOre: basketEstimateOre } = planTowardsBudget(
+        (budgetTargetOre) =>
+          generateMealPlan({
+            recipes,
+            constraints: { ...constraints, budgetTargetOre },
+            targets,
+            tolerances,
+            locked,
+            seed,
+            basket,
+          }),
+        profile.weeklyBudgetOre,
+        (r) =>
+          basketTotalFor(
+            r.days.flatMap((d) => d.meals),
+            catalog,
+            pantry,
+            stores,
+            profile.allergens,
+            now,
+          ),
+      ));
+      if (basketEstimateOre !== null && basketEstimateOre > profile.weeklyBudgetOre) {
+        budgetWarnings.push(
+          `Den billigste madplan, der holder dine mål, koster ca. ${formatKr(basketEstimateOre)} i indkøb. Det er over dit ugebudget på ${formatKr(profile.weeklyBudgetOre)}.`,
+        );
+      }
+    } else {
+      result = generateMealPlan({ recipes, constraints, targets, tolerances, locked, seed });
+    }
     const algorithmVersionId = await getAlgorithmVersionId(
       tx,
       MEAL_PLANNER_ALGORITHM.key,
@@ -254,7 +290,9 @@ export async function generatePlan(
     const validation = revalidate({ meals }, catalog, targets, tolerances, [
       ...warnings,
       ...result.warnings,
+      ...budgetWarnings,
     ]);
+    validation.basketEstimateOre = basketEstimateOre;
     // Slots the planner could not fill are not visible from the saved meals, so carry them over.
     for (const day of result.days) {
       validation.days[day.day].violations.push(

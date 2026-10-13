@@ -12,13 +12,17 @@
  *   4. Each day is validated against configurable tolerances. Days that fail
  *      get a bounded swap search over the top candidates; any remaining
  *      violation is reported, never hidden.
+ *   5. With a weekly budget, a swap search moves the week's estimated cost as
+ *      close to the budget as possible without going over, as long as no day
+ *      gets worse on nutrition.
  *
  * This is a heuristic. It does not claim the plan is globally optimal.
  */
 
 import type { NutrientTotals } from "@/features/nutrition/domain/recipe-nutrition";
+import { basketCost, weekNeeds, type BasketCostModel } from "./basket-cost";
 
-export const MEAL_PLANNER_ALGORITHM = { key: "meal-planner", version: "1.2.0" } as const;
+export const MEAL_PLANNER_ALGORITHM = { key: "meal-planner", version: "1.3.0" } as const;
 
 export const CUISINES = ["fitness", "thai", "asiatisk", "dansk", "italiensk", "mexicansk"] as const;
 export type Cuisine = (typeof CUISINES)[number];
@@ -82,6 +86,12 @@ export interface PlannerConstraints {
   mealsPerDay: number;
   householdSize: number;
   weeklyBudgetOre: number | null;
+  /**
+   * What the week's estimated recipe cost should land on (defaults to the
+   * weekly budget). Callers lower it when whole packages make the real
+   * shopping basket cost more than the recipe estimate.
+   */
+  budgetTargetOre?: number | null;
 }
 
 export interface DailyTargets {
@@ -302,6 +312,8 @@ export interface PlanInput {
   locked?: LockedMeal[];
   seed?: number;
   days?: number;
+  /** Whole-package cost model; without it the budget search uses per-serving estimates. */
+  basket?: BasketCostModel;
 }
 
 interface ScoreContext {
@@ -337,9 +349,13 @@ function scoreCandidate(r: PlannerRecipe, c: PlannerConstraints, ctx: ScoreConte
   const disliked = r.ingredientIds.filter((i) => c.dislikedIngredientIds.includes(i)).length;
   score -= 2 * disliked;
   if (c.maxCookingMinutes && r.totalTimeMinutes > c.maxCookingMinutes) score -= 1.5;
-  if (c.weeklyBudgetOre && r.estimatedCostPerServingOre !== null) {
+  if (c.weeklyBudgetOre) {
     const perMealBudget = c.weeklyBudgetOre / (7 * c.mealsPerDay * Math.max(1, c.householdSize));
-    score -= 0.8 * Math.max(0, r.estimatedCostPerServingOre / perMealBudget - 1);
+    // Capped; an unknown price counts as the most expensive, never as a free meal.
+    score -=
+      r.estimatedCostPerServingOre === null
+        ? 2
+        : Math.min(2, 0.8 * Math.max(0, r.estimatedCostPerServingOre / perMealBudget - 1));
   }
   score -= 0.5 * (1 - r.nutritionCompleteness);
   // Seeded tie-breaker in [0, 0.3).
@@ -386,6 +402,7 @@ export function generateMealPlan(input: PlanInput): MealPlanResult {
   }
 
   const days: PlannedDay[] = [];
+  const dayContexts: DayContext[] = [];
   for (let day = 0; day < numDays; day++) {
     const slotCount = new Map<MealSlot, number>();
     const violations: Violation[] = [];
@@ -424,7 +441,7 @@ export function generateMealPlan(input: PlanInput): MealPlanResult {
         .map((r) => ({ r, s: scoreCandidate(r, c, ctx) }))
         .sort((a, b) => b.s - a.s || a.r.id.localeCompare(b.r.id))
         .map((x) => x.r);
-      candidatesPerSlot.push(ranked.slice(0, 6));
+      candidatesPerSlot.push(ranked.slice(0, BUDGET_CANDIDATES));
       const pick = ranked[0];
       if (!pick) {
         violations.push({ code: "no_candidates", slot });
@@ -454,7 +471,7 @@ export function generateMealPlan(input: PlanInput): MealPlanResult {
         let improved = false;
         meals.forEach((m, mi) => {
           if (m.locked) return;
-          const candidates = candidatesPerSlot[mealSlotIndex[mi]] ?? [];
+          const candidates = (candidatesPerSlot[mealSlotIndex[mi]] ?? []).slice(0, 6);
           for (const cand of candidates) {
             if (cand.id === m.recipeId) continue;
             if ((usedCounts.get(cand.id) ?? 0) >= 2) continue;
@@ -480,6 +497,20 @@ export function generateMealPlan(input: PlanInput): MealPlanResult {
     const household = Math.max(1, c.householdSize);
     meals = meals.map((m) => ({ ...m, householdServings: m.servings + (household - 1) }));
     days.push({ day, meals, totals, violations: [...violations, ...dayViolations] });
+    dayContexts.push({ candidatesPerSlot, mealSlotIndex, mealShares });
+  }
+
+  const budgetTarget = c.budgetTargetOre ?? c.weeklyBudgetOre;
+  if (budgetTarget && budgetTarget > 0) {
+    fitBudget(days, dayContexts, budgetTarget, {
+      recipeMap,
+      targets: input.targets,
+      tolerances: tol,
+      household: Math.max(1, c.householdSize),
+      usedCounts,
+      markUsed,
+      basket: input.basket,
+    });
   }
 
   let cost = 0;
@@ -507,6 +538,133 @@ export function generateMealPlan(input: PlanInput): MealPlanResult {
     unknownCostMeals: unknown,
     warnings,
   };
+}
+
+/** How many ranked candidates per slot the budget search may swap in. */
+const BUDGET_CANDIDATES = 15;
+
+interface DayContext {
+  candidatesPerSlot: PlannerRecipe[][];
+  mealSlotIndex: number[];
+  mealShares: number[];
+}
+
+interface BudgetContext {
+  recipeMap: Map<string, PlannerRecipe>;
+  targets: DailyTargets;
+  tolerances: Tolerances;
+  household: number;
+  usedCounts: Map<string, number>;
+  markUsed: (r: PlannerRecipe, delta: number) => void;
+  basket?: BasketCostModel;
+}
+
+/** Distance from the budget target; going over counts three times as much as staying under. */
+function budgetGap(cost: number, target: number): number {
+  return cost > target ? 3 * (cost - target) : target - cost;
+}
+
+/**
+ * The week's cost: the whole-package basket when a basket model is given,
+ * otherwise the sum of per-serving recipe estimates.
+ */
+function weekCost(
+  weekMeals: PlannedMeal[][],
+  b: BudgetContext,
+): { cost: number; complete: boolean } {
+  const all = weekMeals.flat();
+  if (b.basket) {
+    const basket = basketCost(weekNeeds(all, b.basket), b.basket);
+    if (basket) return { cost: basket.totalOre, complete: basket.complete };
+  }
+  let cost = 0;
+  for (const m of all)
+    cost += (b.recipeMap.get(m.recipeId)?.estimatedCostPerServingOre ?? 0) * m.householdServings;
+  return { cost, complete: true };
+}
+
+interface BudgetMove {
+  day: number;
+  meals: PlannedMeal[];
+  cost: number;
+  complete: boolean;
+  gap: number;
+  from: string;
+  to: PlannerRecipe;
+}
+
+/**
+ * Greedy week-level swap search towards the budget target. Each step takes the
+ * single meal swap that closes the gap the most, provided the day keeps the
+ * same or fewer nutrition violations, its deviation from the targets grows by
+ * at most a small margin, and the basket does not lose a store that can supply
+ * everything. Recipes without a known price are never swapped in, and the
+ * weekly variety limit (two uses per recipe) still applies.
+ */
+function fitBudget(days: PlannedDay[], contexts: DayContext[], target: number, b: BudgetContext) {
+  const withHousehold = (meals: PlannedMeal[]) =>
+    meals.map((m) => ({ ...m, householdServings: m.servings + (b.household - 1) }));
+  // Baselines from before the search, so repeated swaps cannot drift a day away from its targets.
+  const baseDev = days.map((d) => dayDeviation(d.totals, b.targets));
+  const baseViolations = days.map(
+    (d) => d.violations.filter((v) => v.code !== "no_candidates").length,
+  );
+  let { cost, complete } = weekCost(
+    days.map((d) => d.meals),
+    b,
+  );
+
+  for (let step = 0; step < 80; step++) {
+    const gap = budgetGap(cost, target);
+    if (gap <= target * 0.01) break;
+    let best: BudgetMove | null = null;
+    days.forEach((d, di) => {
+      const ctx = contexts[di];
+      d.meals.forEach((m, mi) => {
+        if (m.locked) return;
+        for (const cand of ctx.candidatesPerSlot[ctx.mealSlotIndex[mi]] ?? []) {
+          if (cand.id === m.recipeId || cand.estimatedCostPerServingOre === null) continue;
+          if ((b.usedCounts.get(cand.id) ?? 0) >= 2) continue;
+          const trial = d.meals.map((x, xi) => (xi === mi ? { ...x, recipeId: cand.id } : x));
+          const scaled = withHousehold(
+            scalePortions(trial, b.recipeMap, b.targets, ctx.mealShares),
+          );
+          const next = weekCost(
+            days.map((x, xi) => (xi === di ? scaled : x.meals)),
+            b,
+          );
+          if (complete && !next.complete) continue;
+          const newGap = budgetGap(next.cost, target);
+          if (newGap >= gap - 100 || (best && newGap >= best.gap)) continue;
+          const totals = dayTotals(scaled, b.recipeMap);
+          if (validateDay(totals, b.targets, b.tolerances).length > baseViolations[di]) continue;
+          if (dayDeviation(totals, b.targets) > baseDev[di] + 0.02) continue;
+          best = {
+            day: di,
+            meals: scaled,
+            cost: next.cost,
+            complete: next.complete,
+            gap: newGap,
+            from: m.recipeId,
+            to: cand,
+          };
+        }
+      });
+    });
+    if (!best) break;
+    const move = best as BudgetMove;
+    const d = days[move.day];
+    b.markUsed(b.recipeMap.get(move.from)!, -1);
+    b.markUsed(move.to, 1);
+    d.meals = move.meals;
+    d.totals = dayTotals(move.meals, b.recipeMap);
+    d.violations = [
+      ...d.violations.filter((v) => v.code === "no_candidates"),
+      ...validateDay(d.totals, b.targets, b.tolerances),
+    ];
+    cost = move.cost;
+    complete = move.complete;
+  }
 }
 
 export function describeViolation(v: Violation): string {

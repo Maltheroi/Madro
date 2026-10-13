@@ -133,6 +133,8 @@ export default async function MealPlanPage() {
         targets={{ energyKcal: goal.energyKcal, proteinG: goal.proteinG }}
         warnings={plan.validation.warnings}
         estimatedCostOre={plan.validation.estimatedCostOre}
+        basketEstimateOre={plan.validation.basketEstimateOre ?? null}
+        budgetOre={profile.weeklyBudgetOre}
         unknownCostMeals={plan.validation.unknownCostMeals}
         householdSize={profile.householdSize}
       />

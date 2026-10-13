@@ -61,7 +61,7 @@ export interface RequiredItem {
   recipeIds: string[];
 }
 
-function normalise(
+export function normalise(
   quantity: number,
   unit: Unit,
   info: IngredientInfo | undefined,

@@ -54,6 +54,8 @@ export function WeekView({
   targets,
   warnings,
   estimatedCostOre,
+  basketEstimateOre,
+  budgetOre,
   unknownCostMeals,
   householdSize,
 }: {
@@ -61,6 +63,8 @@ export function WeekView({
   targets: { energyKcal: number; proteinG: number };
   warnings: string[];
   estimatedCostOre: number | null;
+  basketEstimateOre: number | null;
+  budgetOre: number | null;
   unknownCostMeals: number;
   householdSize: number;
 }) {
@@ -99,14 +103,23 @@ export function WeekView({
           <AlertDescription>{w}</AlertDescription>
         </Alert>
       ))}
-      <p className="text-muted-foreground text-sm">
-        Anslået råvarepris for ugen{householdSize > 1 ? ` (${householdSize} personer)` : ""}:{" "}
-        <strong className="text-foreground">
-          {estimatedCostOre === null ? "ukendt" : `ca. ${formatKr(estimatedCostOre)}`}
-        </strong>
-        {unknownCostMeals > 0 ? ` · ${unknownCostMeals} måltider uden pris` : ""}. Den præcise pris
-        beregnes i indkøbskurven.
-      </p>
+      {basketEstimateOre !== null ? (
+        <p className="text-muted-foreground text-sm">
+          Forventet indkøb for ugen{householdSize > 1 ? ` (${householdSize} personer)` : ""}:{" "}
+          <strong className="text-foreground">ca. {formatKr(basketEstimateOre)}</strong>
+          {budgetOre !== null ? ` af dit budget på ${formatKr(budgetOre)}` : ""}. Den præcise pris
+          beregnes i indkøbskurven.
+        </p>
+      ) : (
+        <p className="text-muted-foreground text-sm">
+          Anslået råvarepris for ugen{householdSize > 1 ? ` (${householdSize} personer)` : ""}:{" "}
+          <strong className="text-foreground">
+            {estimatedCostOre === null ? "ukendt" : `ca. ${formatKr(estimatedCostOre)}`}
+          </strong>
+          {unknownCostMeals > 0 ? ` · ${unknownCostMeals} måltider uden pris` : ""}. Den præcise
+          pris beregnes i indkøbskurven.
+        </p>
+      )}
       <ol className="grid gap-4">
         {days.map((d) => {
           const kcalDiff = d.totals.energyKcal - targets.energyKcal;
