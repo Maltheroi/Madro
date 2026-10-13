@@ -9,7 +9,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { NativeSelect } from "@/components/ui/native-select";
 import {
   describeViolation,
+  MAX_SERVINGS,
   MEAL_SLOT_LABELS_DA,
+  MIN_SERVINGS,
   type MealSlot,
   type Violation,
 } from "@/features/meal-planning/domain/planner";
@@ -177,7 +179,7 @@ export function WeekView({
                           size="icon"
                           className="size-9"
                           aria-label="Mindre portion"
-                          disabled={pending || m.servings <= 0.5}
+                          disabled={pending || m.servings <= MIN_SERVINGS}
                           onClick={() => act(() => setServingsAction(m.id, m.servings - 0.25))}
                         >
                           <Minus aria-hidden />
@@ -191,7 +193,7 @@ export function WeekView({
                           size="icon"
                           className="size-9"
                           aria-label="Større portion"
-                          disabled={pending || m.servings >= 2}
+                          disabled={pending || m.servings >= MAX_SERVINGS}
                           onClick={() => act(() => setServingsAction(m.id, m.servings + 0.25))}
                         >
                           <Plus aria-hidden />

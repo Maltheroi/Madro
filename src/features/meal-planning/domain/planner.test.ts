@@ -67,10 +67,10 @@ describe("meal planner", () => {
     expect(slotsForMealsPerDay(9)).toHaveLength(5);
   });
 
-  it("quantizes servings to 0.25 steps within 0.5–2", () => {
+  it("quantizes servings to 0.25 steps within 0.5–3", () => {
     expect(quantizeServings(1.13)).toBe(1.25);
     expect(quantizeServings(0.1)).toBe(0.5);
-    expect(quantizeServings(5)).toBe(2);
+    expect(quantizeServings(5)).toBe(3);
   });
 
   it("treats allergies and diet as hard constraints", () => {
@@ -155,5 +155,24 @@ describe("meal planner", () => {
       targets,
     });
     for (const m of plan.days[0].meals) expect(m.householdServings).toBe(m.servings + 2);
+  });
+
+  it("reaches high energy targets and prefers protein-dense meals when scaling", () => {
+    const pool = [
+      r("havre", ["breakfast"], 450, 15, 70, 10),
+      r("pasta", ["lunch"], 550, 18, 80, 15),
+      r("kylling", ["dinner"], 500, 45, 40, 15),
+    ];
+    const plan = generateMealPlan({
+      recipes: pool,
+      constraints: { ...constraints, mealsPerDay: 3 },
+      targets: { energyKcal: 3500, proteinG: 180, carbohydrateG: 420, fatG: 105 },
+      days: 1,
+    });
+    const day = plan.days[0];
+    expect(Math.abs(day.totals.energyKcal - 3500) / 3500).toBeLessThanOrEqual(0.07);
+    const dinner = day.meals.find((m) => m.slot === "dinner")!;
+    const lunch = day.meals.find((m) => m.slot === "lunch")!;
+    expect(dinner.servings).toBeGreaterThan(lunch.servings);
   });
 });

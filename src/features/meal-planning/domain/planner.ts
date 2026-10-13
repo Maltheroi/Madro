@@ -7,7 +7,7 @@
  *      fit, ingredient reuse with recipes already chosen, variety, cost, cooking
  *      time, disliked ingredients and favourites. A seeded hash breaks ties so
  *      "regenerate" yields a different but reproducible week.
- *   3. Portions are scaled (0.5–2.0 servings in 0.25 steps) so each day lands
+ *   3. Portions are scaled (0.5–3.0 servings in 0.25 steps) so each day lands
  *      near the energy target.
  *   4. Each day is validated against configurable tolerances. Days that fail
  *      get a bounded swap search over the top candidates; any remaining
@@ -18,7 +18,7 @@
 
 import type { NutrientTotals } from "@/features/nutrition/domain/recipe-nutrition";
 
-export const MEAL_PLANNER_ALGORITHM = { key: "meal-planner", version: "1.0.0" } as const;
+export const MEAL_PLANNER_ALGORITHM = { key: "meal-planner", version: "1.1.0" } as const;
 
 export const MEAL_SLOTS = ["breakfast", "lunch", "dinner", "snack"] as const;
 export type MealSlot = (typeof MEAL_SLOTS)[number];
@@ -186,7 +186,7 @@ export function hash(str: string): number {
 
 export const SERVING_STEP = 0.25;
 export const MIN_SERVINGS = 0.5;
-export const MAX_SERVINGS = 2;
+export const MAX_SERVINGS = 3;
 
 export function quantizeServings(x: number): number {
   const clamped = Math.min(MAX_SERVINGS, Math.max(MIN_SERVINGS, x));
@@ -241,37 +241,42 @@ function dayDeviation(totals: DailyTargets, targets: DailyTargets): number {
 }
 
 /**
- * Scale the open (unlocked) meals of a day so energy approaches the target.
- * Each slot first gets its share; then the remaining gap is closed by stepping
- * the meal whose step moves the total closest to target.
+ * Scale the open (unlocked) meals of a day. Each slot first gets its energy
+ * share; then single 0.25-serving steps are applied while they reduce the
+ * day's deviation from the targets (energy, protein shortfall, carbohydrate,
+ * fat), so protein-dense meals are scaled up before others.
  */
 export function scalePortions(
   meals: PlannedMeal[],
   recipes: Map<string, PlannerRecipe>,
-  targetKcal: number,
+  targets: DailyTargets,
   shares: number[],
 ): PlannedMeal[] {
   const out = meals.map((m, i) => {
     if (m.locked) return { ...m };
     const r = recipes.get(m.recipeId)!;
-    return { ...m, servings: quantizeServings((targetKcal * shares[i]) / r.perServing.energyKcal) };
+    return {
+      ...m,
+      servings: quantizeServings((targets.energyKcal * shares[i]) / r.perServing.energyKcal),
+    };
   });
-  for (let iter = 0; iter < 12; iter++) {
-    const current = dayTotals(out, recipes).energyKcal;
-    const gap = targetKcal - current;
-    let best: { idx: number; servings: number; newGap: number } | null = null;
+  let current = dayDeviation(dayTotals(out, recipes), targets);
+  for (let iter = 0; iter < 24; iter++) {
+    let best: { idx: number; servings: number; dev: number } | null = null;
     out.forEach((m, idx) => {
       if (m.locked) return;
-      const r = recipes.get(m.recipeId)!;
-      const next = quantizeServings(m.servings + Math.sign(gap) * SERVING_STEP);
-      if (next === m.servings) return;
-      const newGap = Math.abs(gap - (next - m.servings) * r.perServing.energyKcal);
-      if (newGap < Math.abs(gap) && (!best || newGap < best.newGap))
-        best = { idx, servings: next, newGap };
+      for (const dir of [1, -1]) {
+        const next = quantizeServings(m.servings + dir * SERVING_STEP);
+        if (next === m.servings) continue;
+        const trial = out.map((x, xi) => (xi === idx ? { ...x, servings: next } : x));
+        const dev = dayDeviation(dayTotals(trial, recipes), targets);
+        if (dev < current - 1e-9 && (!best || dev < best.dev)) best = { idx, servings: next, dev };
+      }
     });
     if (!best) break;
-    const b = best as { idx: number; servings: number };
+    const b = best as { idx: number; servings: number; dev: number };
     out[b.idx] = { ...out[b.idx], servings: b.servings };
+    current = b.dev;
   }
   return out;
 }
@@ -414,7 +419,7 @@ export function generateMealPlan(input: PlanInput): MealPlanResult {
     });
 
     const mealShares = mealSlotIndex.map((i) => shares[i]);
-    meals = scalePortions(meals, recipeMap, input.targets.energyKcal, mealShares);
+    meals = scalePortions(meals, recipeMap, input.targets, mealShares);
     let totals = dayTotals(meals, recipeMap);
     let dayViolations = validateDay(totals, input.targets, tol);
 
@@ -430,7 +435,7 @@ export function generateMealPlan(input: PlanInput): MealPlanResult {
             if (cand.id === m.recipeId) continue;
             if ((usedCounts.get(cand.id) ?? 0) >= 2) continue;
             const trial = meals.map((x, xi) => (xi === mi ? { ...x, recipeId: cand.id } : x));
-            const scaled = scalePortions(trial, recipeMap, input.targets.energyKcal, mealShares);
+            const scaled = scalePortions(trial, recipeMap, input.targets, mealShares);
             const dev = dayDeviation(dayTotals(scaled, recipeMap), input.targets);
             if (dev < bestDeviation - 1e-9) {
               markUsed(recipeMap.get(m.recipeId)!, -1);

@@ -12,6 +12,7 @@ import {
   toggleLock,
 } from "@/server/services/meal-plan";
 import { RateLimitError } from "@/server/services/rate-limit";
+import { MAX_SERVINGS, MIN_SERVINGS } from "./domain/planner";
 import { logError } from "@/lib/observability/log";
 import type { ActionResult } from "@/lib/validation/common";
 
@@ -45,7 +46,7 @@ export async function toggleLockAction(mealId: string): Promise<ActionResult> {
 
 export async function setServingsAction(mealId: string, servings: number): Promise<ActionResult> {
   const user = await requireUser();
-  const s = z.number().min(0.5).max(2).parse(servings);
+  const s = z.number().min(MIN_SERVINGS).max(MAX_SERVINGS).parse(servings);
   return run(() => setServings(user, id.parse(mealId), s), "Portionen kunne ikke opdateres.");
 }
 
