@@ -1,0 +1,39 @@
+name: Synkroniser tilbud (ShelfAtlas)
+
+# Fetches this week's leaflet offers into the database. Needs two repository
+# secrets:
+#   DATABASE_URL         Supabase session pooler URL (owner role)
+#   SHELFATLAS_API_KEY   free personal key from shelfatlas.com (sa_live_…)
+# Optional repository variable SHELFATLAS_CHAINS limits the chains, e.g.
+# "netto,rema-1000,lidl". Free plan: 1,000 requests a month; a full run uses
+# about 35.
+on:
+  schedule:
+    # Monday and Thursday 05:15 UTC, after most chains publish their leaflets.
+    - cron: "15 5 * * 1,4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-offers
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Sync
+        run: npx tsx scripts/sync-shelfatlas-offers.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SHELFATLAS_API_KEY: ${{ secrets.SHELFATLAS_API_KEY }}
+          SHELFATLAS_CHAINS: ${{ vars.SHELFATLAS_CHAINS }}

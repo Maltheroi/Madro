@@ -1,5 +1,7 @@
 import postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { pruneOffers, upsertOffers } from "../../src/server/providers/offers-store";
+import type { OfferRecord } from "../../src/server/providers/shelfatlas";
 
 const url = process.env.DATABASE_TEST_URL;
 if (!url) throw new Error("DATABASE_TEST_URL is not set; run via `npm run test:db`.");
@@ -287,5 +289,91 @@ describe("packaged products", () => {
     });
     expect(rows).toEqual([{ source: "product", product_id: id }]);
     await sql`delete from public.packaged_products where id = ${id}`;
+  });
+});
+
+describe("promotional offers (ShelfAtlas)", () => {
+  const offer = (id: string, over: Partial<OfferRecord> = {}): OfferRecord => ({
+    sourceKey: "shelfatlas",
+    externalId: id,
+    retailerSlug: "netto",
+    retailerName: "Netto",
+    title: `Testtilbud ${id}`,
+    priceOre: 2995,
+    regularPriceOre: 3995,
+    packageQuantity: null,
+    packageUnit: null,
+    unitPriceOre: 5990,
+    unitPriceUnit: "kg",
+    validFrom: new Date(Date.now() - 86_400_000).toISOString(),
+    validTo: new Date(Date.now() + 5 * 86_400_000).toISOString(),
+    ingestedAt: null,
+    ...over,
+  });
+
+  afterAll(async () => {
+    await sql`delete from public.promotional_offers where source_key = 'shelfatlas'`;
+    await sql`delete from public.retailers where slug = 'testkaede'`;
+  });
+
+  it("upserts offers, adds unknown chains and prunes withdrawn and expired ones", async () => {
+    const first = new Date(Date.now() - 60_000);
+    await sql.begin((tx) =>
+      upsertOffers(
+        tx,
+        [
+          offer("a"),
+          offer("b", { retailerSlug: "testkaede", retailerName: "Testkæde" }),
+          offer("old", {
+            validFrom: "2026-01-01T00:00:00Z",
+            validTo: "2026-01-07T00:00:00Z",
+          }),
+        ],
+        first,
+        null,
+      ),
+    );
+    const [chain] = await sql`select name from public.retailers where slug = 'testkaede'`;
+    expect(chain.name).toBe("Testkæde");
+
+    const second = new Date();
+    await sql.begin(async (tx) => {
+      await upsertOffers(tx, [offer("a", { priceOre: 2495 })], second, null);
+      return pruneOffers(tx, "shelfatlas", { completeSyncStartedAt: second });
+    });
+    const rows = await sql`
+      select external_id, price_ore from public.promotional_offers where source_key = 'shelfatlas'`;
+    expect(rows).toEqual([{ external_id: "a", price_ore: 2495 }]);
+  });
+
+  it("is readable but not writable for signed-in users", async () => {
+    await sql.begin((tx) => upsertOffers(tx, [offer("r")], new Date(), null));
+    const rows = await asUser(
+      alice,
+      (tx) => tx`select title from public.promotional_offers where external_id = 'r'`,
+    );
+    expect(rows).toEqual([{ title: "Testtilbud r" }]);
+    await expect(
+      asUser(
+        alice,
+        (tx) => tx`update public.promotional_offers set price_ore = 1 where external_id = 'r'`,
+      ),
+    ).resolves.toHaveLength(0);
+    await expect(
+      asUser(
+        alice,
+        (
+          tx,
+        ) => tx`insert into public.promotional_offers (retailer_id, source_key, external_id, title, price_ore, valid_from, valid_to)
+                   select id, 'shelfatlas', 'x', 'Falsk', 100, now(), now() from public.retailers limit 1`,
+      ),
+    ).rejects.toThrow(/row-level security|permission denied/);
+  });
+
+  it("rejects a unit price without its unit", async () => {
+    await expect(
+      sql`insert into public.promotional_offers (retailer_id, source_key, external_id, title, price_ore, unit_price_ore, valid_from, valid_to)
+          select id, 'shelfatlas', 'u', 'Uden enhed', 100, 200, now(), now() from public.retailers limit 1`,
+    ).rejects.toThrow(/promotional_offers_unit_price_pair/);
   });
 });

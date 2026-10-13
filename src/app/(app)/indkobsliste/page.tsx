@@ -18,6 +18,9 @@ export default async function ShoppingListPage() {
   const actions = (
     <>
       <Button asChild variant="outline">
+        <Link href="/indkobsliste/tilbud">Ugens tilbud</Link>
+      </Button>
+      <Button asChild variant="outline">
         <Link href="/spisekammer">Spisekammer</Link>
       </Button>
       <Button asChild>

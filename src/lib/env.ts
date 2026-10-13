@@ -16,6 +16,8 @@ const serverSchema = z.object({
   DATABASE_SSL: z.enum(["require", "disable"]).default("require"),
   /** Optional: enables the Open Food Facts product lookup. Must identify the app and a contact. */
   OPEN_FOOD_FACTS_USER_AGENT: z.string().min(10).optional(),
+  /** Optional: Salling Group back-end key; enables food-waste offers near the user's postal code. */
+  SALLING_API_KEY: z.string().min(10).optional(),
   /** Optional: enables AI-assisted explanations and substitutions. */
   ANTHROPIC_API_KEY: z.string().min(10).optional(),
   AI_MODEL: z.string().default("claude-haiku-5-5"),
