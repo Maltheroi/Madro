@@ -37,7 +37,15 @@ export default async function ShoppingListPage() {
         <PageHeader
           title="Indkøbsliste"
           description="Listen laves ud fra din godkendte madplan og dit spisekammer."
-          actions={required ? actions : undefined}
+          actions={
+            required ? (
+              actions
+            ) : (
+              <Button asChild variant="outline">
+                <Link href="/indkobsliste/tilbud">Ugens tilbud</Link>
+              </Button>
+            )
+          }
         />
         {!required ? (
           <Card>
