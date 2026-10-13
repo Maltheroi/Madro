@@ -61,8 +61,9 @@ export function DevNutritionNotice() {
     <div role="note" className="bg-info text-info-foreground flex gap-3 rounded-lg p-3 text-sm">
       <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
       <p>
-        Næringsværdierne er foreløbige udviklingsdata og endnu ikke verificeret mod Frida (DTU
-        Fødevareinstituttet). Brug dem som vejledende.
+        De fleste fødevarer har næringsværdier fra Frida 5.5 (DTU Fødevareinstituttet). Nogle har
+        stadig omtrentlige udviklingsdata, og retter med dem er markeret med lav datakvalitet. Brug
+        tallene som vejledende.
       </p>
     </div>
   );

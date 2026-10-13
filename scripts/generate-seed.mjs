@@ -9,6 +9,7 @@ import {
   allRecipes as recipes,
   demoRetailers,
 } from "../supabase/seed-data/index.mjs";
+import { fridaSql } from "./frida-sql.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const q = (v) => (v === null || v === undefined ? "null" : `'${String(v).replaceAll("'", "''")}'`);
@@ -139,6 +140,9 @@ and (select count(*) from public.price_observations o where o.product_id = p.id)
     });
   }
 }
+
+// Real nutrition from Frida 5.5 (CC BY 4.0) next to the approximate values.
+out.push(fridaSql());
 
 writeFileSync(join(root, "supabase/seed.sql"), out.join("\n\n") + "\n");
 console.log(

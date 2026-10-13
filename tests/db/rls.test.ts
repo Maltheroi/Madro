@@ -66,6 +66,16 @@ describe("schema", () => {
     expect(real).toBe(0);
   });
 
+  it("seeds Frida 5.5 values as a verified source", async () => {
+    const [src] =
+      await sql`select license, verification_status from public.nutrition_sources where key = 'frida'`;
+    expect(src).toEqual({ license: "CC BY 4.0", verification_status: "verified" });
+    const [{ n }] = await sql`
+      select count(*)::int as n from public.nutrition_facts f join public.nutrition_sources s on s.id = f.source_id
+      where s.key = 'frida' and f.confidence = 'high' and f.source_food_code is not null`;
+    expect(n).toBeGreaterThanOrEqual(70);
+  });
+
   it("tags recipes with known cuisines only", async () => {
     const rows = await sql`
       select c, count(*)::int as n from public.recipes, unnest(cuisines) c group by c order by c`;
