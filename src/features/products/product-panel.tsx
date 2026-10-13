@@ -250,7 +250,7 @@ function ScanButton({
 }) {
   const supported = useSyncExternalStore(
     noopSubscribe,
-    () => "BarcodeDetector" in window && Boolean(navigator.mediaDevices?.getUserMedia),
+    () => Boolean(navigator.mediaDevices?.getUserMedia),
     () => false,
   );
   const [error, setError] = useState<string | null>(null);
@@ -264,31 +264,59 @@ function ScanButton({
   useEffect(() => {
     if (!scanning) return;
     let stream: MediaStream | null = null;
+    let stopZxing: (() => void) | null = null;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
+    const constraints: MediaStreamConstraints = {
+      video: { facingMode: "environment" },
+      audio: false,
+    };
     (async () => {
       try {
-        const Ctor = (window as unknown as { BarcodeDetector: DetectorCtor }).BarcodeDetector;
-        const detector = new Ctor({ formats: ["ean_13", "ean_8", "upc_a", "upc_e"] });
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" },
-          audio: false,
-        });
         const video = videoRef.current;
-        if (!video || stopped) return;
-        video.srcObject = stream;
-        await video.play();
-        const tick = async () => {
+        if (!video) return;
+        if ("BarcodeDetector" in window) {
+          // Chrome on Android: the browser's own detector.
+          const Ctor = (window as unknown as { BarcodeDetector: DetectorCtor }).BarcodeDetector;
+          const detector = new Ctor({ formats: ["ean_13", "ean_8", "upc_a", "upc_e"] });
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
           if (stopped) return;
-          try {
-            const codes = await detector.detect(video);
-            if (codes[0]?.rawValue) return detected(codes[0].rawValue);
-          } catch {
-            // Frame not ready yet; try again.
+          video.srcObject = stream;
+          await video.play();
+          const tick = async () => {
+            if (stopped) return;
+            try {
+              const codes = await detector.detect(video);
+              if (codes[0]?.rawValue) return detected(codes[0].rawValue);
+            } catch {
+              // Frame not ready yet; try again.
+            }
+            timer = setTimeout(tick, 250);
+          };
+          tick();
+          return;
+        }
+        // Safari (iPhone) and others: a JavaScript decoder, loaded only when needed.
+        const [{ BrowserMultiFormatReader }, { BarcodeFormat, DecodeHintType }] = await Promise.all(
+          [import("@zxing/browser"), import("@zxing/library")],
+        );
+        if (stopped) return;
+        const hints = new Map([
+          [
+            DecodeHintType.POSSIBLE_FORMATS,
+            [BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E],
+          ],
+        ]);
+        const reader = new BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 150 });
+        const controls = await reader.decodeFromConstraints(constraints, video, (result) => {
+          if (result && !stopped) {
+            stopped = true;
+            stopZxing?.();
+            detected(result.getText());
           }
-          timer = setTimeout(tick, 250);
-        };
-        tick();
+        });
+        stopZxing = () => controls.stop();
+        if (stopped) controls.stop();
       } catch {
         if (!stopped) failed();
       }
@@ -296,6 +324,7 @@ function ScanButton({
     return () => {
       stopped = true;
       clearTimeout(timer);
+      stopZxing?.();
       stream?.getTracks().forEach((t) => t.stop());
     };
   }, [scanning]);
