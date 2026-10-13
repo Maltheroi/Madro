@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PageHeader } from "@/components/page-header";
+import { countFavorites } from "@/server/services/favorites";
 import { requireUser } from "@/server/auth";
 import { withUser } from "@/lib/database/db";
 import { getActiveGoal, getProfile } from "@/server/repositories/profile";
@@ -39,7 +40,7 @@ export default async function DashboardPage({
   const { velkommen } = await searchParams;
   const user = await requireUser();
   const today = todayInCopenhagen();
-  const [{ profile, goal }, planData, diary, weight, list] = await Promise.all([
+  const [{ profile, goal }, planData, diary, weight, list, favoriteCount] = await Promise.all([
     withUser(user.id, async (tx) => ({
       profile: await getProfile(tx, user.id),
       goal: await getActiveGoal(tx, user.id),
@@ -48,6 +49,7 @@ export default async function DashboardPage({
     getDiaryRange(user, today, today),
     getWeightData(user),
     getLatestList(user),
+    countFavorites(user),
   ]);
 
   const eaten = diary.entries.reduce(
@@ -100,6 +102,17 @@ export default async function DashboardPage({
         <Alert variant="success" className="mb-6">
           <AlertDescription>
             Dine mål er gemt. Næste skridt er at lave din første madplan.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {favoriteCount < 5 ? (
+        <Alert variant="info" className="mb-6">
+          <Info aria-hidden />
+          <AlertDescription>
+            Vælg 5–10 yndlingsretter, så madplanen passer bedre til dig.{" "}
+            <Link href="/profil/yndlingsretter" className="font-medium underline">
+              Vælg retter
+            </Link>
           </AlertDescription>
         </Alert>
       ) : null}

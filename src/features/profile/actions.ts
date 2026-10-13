@@ -23,7 +23,7 @@ export async function saveOnboardingAction(input: ProfileInput): Promise<ActionR
     logError("profile.onboarding_failed", e);
     return { ok: false, error: "Vi kunne ikke gemme dine oplysninger. Prøv igen." };
   }
-  redirect("/oversigt?velkommen=1");
+  redirect("/onboarding/retter");
 }
 
 export async function updateProfileAction(

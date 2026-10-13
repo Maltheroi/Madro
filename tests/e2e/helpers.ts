@@ -36,6 +36,13 @@ export async function signUpAndOnboard(
   await page.getByRole("button", { name: "Fortsæt" }).click();
 
   await expect(page.getByText("Estimat ud fra dine oplysninger")).toBeVisible();
+  await page.getByRole("button", { name: "Gem og vælg yndlingsretter" }).click();
+  await page.waitForURL("**/onboarding/retter");
+
+  // Pick five favourite dishes (the minimum).
+  const dishes = page.getByRole("list", { name: "Retter" }).getByRole("button");
+  await expect(page.getByRole("button", { name: "Vælg 5 mere" })).toBeDisabled();
+  for (let i = 0; i < 5; i++) await dishes.nth(i).click();
   await page.getByRole("button", { name: "Gem og se min oversigt" }).click();
   await page.waitForURL("**/oversigt**");
   return email;

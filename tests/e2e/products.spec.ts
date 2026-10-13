@@ -18,8 +18,9 @@ test.beforeAll(async () => {
     on conflict (source_key, code) where created_by is null do nothing`;
 });
 
+// The fixture row is left in the local test database: projects run in parallel
+// workers, and deleting it here would race with the other project's test.
 test.afterAll(async () => {
-  await sql`delete from public.packaged_products where source_key = 'open-food-facts' and code = ${OFF_CODE}`;
   await sql.end();
 });
 

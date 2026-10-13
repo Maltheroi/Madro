@@ -18,7 +18,18 @@
 
 import type { NutrientTotals } from "@/features/nutrition/domain/recipe-nutrition";
 
-export const MEAL_PLANNER_ALGORITHM = { key: "meal-planner", version: "1.1.0" } as const;
+export const MEAL_PLANNER_ALGORITHM = { key: "meal-planner", version: "1.2.0" } as const;
+
+export const CUISINES = ["fitness", "thai", "asiatisk", "dansk", "italiensk", "mexicansk"] as const;
+export type Cuisine = (typeof CUISINES)[number];
+export const CUISINE_LABELS_DA: Record<Cuisine, string> = {
+  fitness: "Fitness",
+  thai: "Thai",
+  asiatisk: "Asiatisk",
+  dansk: "Dansk",
+  italiensk: "Italiensk",
+  mexicansk: "Mexicansk",
+};
 
 export const MEAL_SLOTS = ["breakfast", "lunch", "dinner", "snack"] as const;
 export type MealSlot = (typeof MEAL_SLOTS)[number];
@@ -52,6 +63,8 @@ export interface PlannerRecipe {
   ingredientIds: string[];
   /** Diet tags the recipe satisfies: "vegan" implies "vegetarian" and "pescetarian". */
   dietTags: string[];
+  /** Cuisine tags (optional for callers that do not care). */
+  cuisines?: string[];
   totalTimeMinutes: number;
   /** Estimated cost per serving in øre, or null when unknown. */
   estimatedCostPerServingOre: number | null;
@@ -298,6 +311,8 @@ interface ScoreContext {
   slotProteinShare: number;
   seed: number;
   key: string;
+  /** Cuisines of the user's favourite recipes, with how many favourites carry each. */
+  favoriteCuisines: Map<string, number>;
 }
 
 function scoreCandidate(r: PlannerRecipe, c: PlannerConstraints, ctx: ScoreContext): number {
@@ -315,7 +330,10 @@ function scoreCandidate(r: PlannerRecipe, c: PlannerConstraints, ctx: ScoreConte
   const used = ctx.usedCounts.get(r.id) ?? 0;
   if (used >= 2) score -= 5;
   else if (used === 1) score -= 0.4;
-  if (c.favoriteRecipeIds.includes(r.id)) score += 0.5;
+  if (c.favoriteRecipeIds.includes(r.id)) score += 1;
+  // Recipes from cuisines the user picked favourites in get a small boost.
+  const affinity = Math.max(0, ...(r.cuisines ?? []).map((k) => ctx.favoriteCuisines.get(k) ?? 0));
+  score += 0.1 * Math.min(affinity, 3);
   const disliked = r.ingredientIds.filter((i) => c.dislikedIngredientIds.includes(i)).length;
   score -= 2 * disliked;
   if (c.maxCookingMinutes && r.totalTimeMinutes > c.maxCookingMinutes) score -= 1.5;
@@ -343,6 +361,11 @@ export function generateMealPlan(input: PlanInput): MealPlanResult {
   const usedCounts = new Map<string, number>();
   const usedIngredients = new Map<string, number>();
   const proteinShare = input.targets.proteinG / input.targets.energyKcal;
+  const favoriteCuisines = new Map<string, number>();
+  for (const id of c.favoriteRecipeIds) {
+    for (const k of recipeMap.get(id)?.cuisines ?? [])
+      favoriteCuisines.set(k, (favoriteCuisines.get(k) ?? 0) + 1);
+  }
 
   const markUsed = (r: PlannerRecipe, delta: number) => {
     usedCounts.set(r.id, (usedCounts.get(r.id) ?? 0) + delta);
@@ -395,6 +418,7 @@ export function generateMealPlan(input: PlanInput): MealPlanResult {
         slotProteinShare: proteinShare,
         seed,
         key: `${day}:${i}`,
+        favoriteCuisines,
       };
       const ranked = pool
         .map((r) => ({ r, s: scoreCandidate(r, c, ctx) }))

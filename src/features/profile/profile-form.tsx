@@ -512,7 +512,11 @@ export function ProfileForm({ mode, defaults }: { mode: Mode; defaults: Partial<
           </Button>
         ) : (
           <Button key="submit" type="submit" disabled={pending} aria-busy={pending}>
-            {pending ? "Gemmer …" : mode === "wizard" ? "Gem og se min oversigt" : "Gem ændringer"}
+            {pending
+              ? "Gemmer …"
+              : mode === "wizard"
+                ? "Gem og vælg yndlingsretter"
+                : "Gem ændringer"}
           </Button>
         )}
       </div>

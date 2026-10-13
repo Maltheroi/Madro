@@ -6,7 +6,7 @@ How the app gets nutrition, product and price data, and what each source allows.
 
 | Source | Code | Status in the app |
 |---|---|---|
-| Development catalogue (44 foods, 20 recipes) | `supabase/seed-data/catalog.mjs` → `supabase/seed.sql` | **Fixture.** Nutrition values are approximate and marked `dev-seed-approximate`, confidence `low`. Replace with Frida before launch. |
+| Development catalogue (98 foods, 80 recipes, original recipe texts) | `supabase/seed-data/*.mjs` → `supabase/seed.sql` | **Fixture.** Nutrition values are approximate and marked `dev-seed-approximate`, confidence `low`. Replace with Frida before launch. |
 | Synthetic prices for "Demo Nord/Syd/Vest (syntetisk)" | same seed | **Fixture.** `price_observations.is_synthetic = true`; the UI always shows the "Testpriser" notice and never calls these prices real. Real Danish chains exist only as reference rows with no prices. |
 | User-entered prices | `addManualPrice` in `src/server/services/shopping.ts` | **Active.** Private to the reporter (RLS), status `estimated`. |
 | Open Food Facts v3 | `src/server/providers/open-food-facts.ts` | **Implemented.** Barcode lookups (cached in `packaged_products`) when `OPEN_FOOD_FACTS_USER_AGENT` is set. Danish products are imported from the official bulk export (gzipped CSV, filtered on countries = Denmark) by `scripts/import-off-denmark.ts`, run as the GitHub Actions workflow "Import Open Food Facts (Danmark)". The search API returned 503 for bulk paging, and OFF asks bulk users to use the export. Rows keep `source_key`, licence and source URL; the UI labels them "Ikke verificeret" with an ODbL link. Users can add private products (`source_key 'user'`). |

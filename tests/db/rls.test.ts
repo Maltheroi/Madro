@@ -64,6 +64,23 @@ describe("schema", () => {
     expect(real).toBe(0);
   });
 
+  it("tags recipes with known cuisines only", async () => {
+    const rows = await sql`
+      select c, count(*)::int as n from public.recipes, unnest(cuisines) c group by c order by c`;
+    for (const r of rows) expect(r.n).toBeGreaterThanOrEqual(8);
+    expect(rows.map((r) => r.c)).toEqual([
+      "asiatisk",
+      "dansk",
+      "fitness",
+      "italiensk",
+      "mexicansk",
+      "thai",
+    ]);
+    await expect(
+      sql`update public.recipes set cuisines = '{fransk}' where slug = 'pasta-bolognese'`,
+    ).rejects.toThrow();
+  });
+
   it("keeps price observations append-only", async () => {
     await expect(
       sql`update public.price_observations set price_ore = 1 where true`,

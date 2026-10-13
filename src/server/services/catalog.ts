@@ -9,7 +9,7 @@ import {
   type RecipeNutrition,
 } from "@/features/nutrition/domain/recipe-nutrition";
 import { convert, dimensionOf, type Unit } from "@/features/nutrition/domain/units";
-import type { MealSlot, PlannerRecipe } from "@/features/meal-planning/domain/planner";
+import type { Cuisine, MealSlot, PlannerRecipe } from "@/features/meal-planning/domain/planner";
 import {
   effectivePrice,
   type PriceObservation,
@@ -54,6 +54,7 @@ export interface CatalogRecipe {
   mealTypes: MealSlot[];
   instructions: string[];
   difficulty: "beginner" | "intermediate" | "advanced";
+  cuisines: Cuisine[];
   lines: RecipeLineView[];
   nutrition: RecipeNutrition;
   allergens: string[];
@@ -295,6 +296,7 @@ export async function loadCatalog(tx: Tx, now = new Date()): Promise<Catalog> {
       mealTypes: r.meal_types,
       instructions: r.instructions_da,
       difficulty: r.difficulty,
+      cuisines: r.cuisines ?? [],
       lines,
       nutrition,
       allergens,
@@ -326,6 +328,7 @@ export function toPlannerRecipe(r: CatalogRecipe): PlannerRecipe {
     allergens: r.allergens,
     ingredientIds: r.lines.map((l) => l.ingredientId),
     dietTags: r.dietTags,
+    cuisines: r.cuisines,
     totalTimeMinutes: r.prepMinutes + r.cookMinutes,
     estimatedCostPerServingOre: r.cost.perServingOre,
     nutritionCompleteness: r.nutrition.completeness,

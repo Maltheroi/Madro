@@ -175,4 +175,23 @@ describe("meal planner", () => {
     const lunch = day.meals.find((m) => m.slot === "lunch")!;
     expect(dinner.servings).toBeGreaterThan(lunch.servings);
   });
+
+  it("prefers favourites and their cuisines", () => {
+    const pool = [
+      r("thai-a", ["dinner"], 600, 35, 60, 20, { cuisines: ["thai"] }),
+      r("thai-b", ["dinner"], 600, 35, 60, 20, { cuisines: ["thai"] }),
+      r("ital-a", ["dinner"], 600, 35, 60, 20, { cuisines: ["italiensk"] }),
+      r("ital-b", ["dinner"], 600, 35, 60, 20, { cuisines: ["italiensk"] }),
+    ];
+    const plan = generateMealPlan({
+      recipes: pool,
+      constraints: { ...constraints, mealsPerDay: 2, favoriteRecipeIds: ["thai-a"] },
+      targets: { energyKcal: 1700, proteinG: 100, carbohydrateG: 170, fatG: 57 },
+      days: 2,
+      seed: 5,
+    });
+    const dinners = plan.days.map((d) => d.meals.find((m) => m.slot === "dinner")!.recipeId);
+    expect(dinners).toContain("thai-a");
+    expect(dinners.every((id) => id.startsWith("thai"))).toBe(true);
+  });
 });

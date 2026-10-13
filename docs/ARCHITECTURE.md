@@ -74,11 +74,11 @@ Calculations use unrounded values. Rounding happens only when showing or storing
 
 ## Meal planner
 
-`src/features/meal-planning/domain/planner.ts`, algorithm `meal-planner` v1.1.
+`src/features/meal-planning/domain/planner.ts`, algorithm `meal-planner` v1.2.
 
 1. **Hard filters** (`isRecipeAllowed`): allergens, diet, excluded ingredients, meal type. Never relaxed. The server re-checks them when a user swaps a meal.
 2. **Slots**: 2–5 meals a day with energy shares (breakfast 25 %, lunch 30 %, dinner 35 %, snack 10 %, rescaled to the chosen slots).
-3. **Choice**: each candidate gets a score: closeness to the slot's energy, protein density, ingredient reuse (less waste), variety (at most two uses a week), favourites, disliked ingredients, cooking time above the user's limit, cost above the per-meal budget, and nutrition data completeness. A seeded FNV-1a hash breaks ties, so the same seed gives the same plan.
+3. **Choice**: each candidate gets a score: closeness to the slot's energy, protein density, ingredient reuse (less waste), variety (at most two uses a week), favourites (+1), recipes sharing a cuisine with the user's favourites (small boost), disliked ingredients, cooking time above the user's limit, cost above the per-meal budget, and nutrition data completeness. A seeded FNV-1a hash breaks ties, so the same seed gives the same plan.
 4. **Scaling**: servings quantised to 0.25 between 0.5 and 3. Each meal starts at its slot's energy share; then single 0.25 steps are taken while they reduce the day's deviation from all targets (energy, protein shortfall, carbohydrate, fat), so protein-dense meals grow first. Household portions = servings + household size − 1.
 5. **Validation**: each day is checked against the targets with tolerances (energy ±7 %, protein at most 10 % short, carbohydrate and fat ±25 %, editable on `/profil/mal`). A bounded swap search tries to fix failing days; days that still fail are stored with their violations and shown.
 6. Locked meals survive regeneration. Plans are archived, not overwritten.

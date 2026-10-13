@@ -52,6 +52,7 @@ export default async function ProfilePage() {
   };
   const links = [
     { href: "/profil/mal", label: "Ernæringsmål og tolerancer" },
+    { href: "/profil/yndlingsretter", label: "Yndlingsretter" },
     { href: "/spisekammer", label: "Spisekammer" },
     { href: "/profil/privatliv", label: "Privatliv, dataeksport og sletning" },
     ...(isAdmin ? [{ href: "/admin/datakilder", label: "Datakilder (administrator)" }] : []),

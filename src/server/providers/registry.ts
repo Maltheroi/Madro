@@ -33,7 +33,7 @@ export function listProviders(): ProviderInfo[] {
       kinds: ["nutrition"],
       status: "fixture",
       licence: "Omtrentlige værdier",
-      note: "44 fødevarer med omtrentligt næringsindhold. Skal erstattes af Frida-data før lancering.",
+      note: "98 fødevarer og 80 opskrifter med omtrentligt næringsindhold. Skal erstattes af Frida-data før lancering.",
     },
     openFoodFactsInfo(env.OPEN_FOOD_FACTS_USER_AGENT),
     {

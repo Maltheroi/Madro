@@ -42,7 +42,7 @@ Email confirmation is auto-approved in this stack so sign-up works without SMTP.
 
 ## Seed data
 
-`supabase/seed.sql` is generated from `supabase/seed-data/catalog.mjs`:
+`supabase/seed.sql` is generated from `supabase/seed-data/` (`index.mjs` combines the files; check recipes with `node scripts/check-seed-recipes.mjs --list`):
 
 ```bash
 node scripts/generate-seed.mjs
