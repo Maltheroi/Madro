@@ -101,6 +101,8 @@ describe("whole-package basket cost", () => {
       new Map([["ris:mass", [{ size: 1000, priceOre: 1000 }]]]),
     ],
     pantry: new Map([["kylling:mass", 200]]),
+    // Rice keeps: only the share used counts.
+    longLasting: new Set(["ris:mass"]),
   };
 
   it("buys whole packages", () => {
@@ -116,7 +118,7 @@ describe("whole-package basket cost", () => {
     ).toBe(6000);
   });
 
-  it("sums needs, subtracts the pantry and picks the cheapest complete store", () => {
+  it("sums needs, subtracts the pantry, counts long-lasting goods by share and picks the cheapest complete store", () => {
     const needs = weekNeeds(
       [
         { recipeId: "a", householdServings: 4 },
@@ -125,13 +127,13 @@ describe("whole-package basket cost", () => {
       model,
     );
     expect(needs.get("ris:mass")).toBe(800);
-    // 600 g chicken − 200 g in the pantry = 400 g: one package.
-    expect(basketCost(needs, model)).toEqual({ totalOre: 1500 + 4000, complete: true });
+    // 800 g of a 1 kg bag of rice; 600 g chicken − 200 g in the pantry = one 500 g package.
+    expect(basketCost(needs, model)).toEqual({ totalOre: 1200 + 4000, complete: true });
   });
 });
 
 describe("planTowardsBudget", () => {
-  const fake = (cost: number) => ({ estimatedCostOre: cost }) as MealPlanResult;
+  const fake = (cost: number) => ({ estimatedCostOre: cost, valid: true }) as MealPlanResult;
 
   it("lowers the planner's target until the basket fits", () => {
     // The basket costs 1.5× what the planner aims at (package overhead).
@@ -147,13 +149,47 @@ describe("planTowardsBudget", () => {
     expect(result.estimatedCostOre).toBeLessThan(30_000);
   });
 
-  it("returns the cheapest result when nothing fits", () => {
+  it("restarts from fixed seeds when the budget is out of reach and keeps the cheapest", () => {
+    const seeds: (number | undefined)[] = [];
+    const costBySeed: Record<string, number> = {
+      start: 60_000,
+      "1": 55_000,
+      "2": 52_000,
+      "3": 58_000,
+    };
     const { basketTotalOre } = planTowardsBudget(
-      (t) => fake(t),
+      (t, seed) => {
+        seeds.push(seed);
+        const cost = costBySeed[seed === undefined ? "start" : String(seed)];
+        // The planner reports that it could not reach its target.
+        return {
+          estimatedCostOre: cost,
+          valid: true,
+          budgetFit: { targetOre: t, costOre: cost },
+        } as MealPlanResult;
+      },
       30_000,
-      (r) => Math.max(50_000, r.estimatedCostOre!),
+      (r) => r.estimatedCostOre,
     );
-    expect(basketTotalOre).toBe(50_000);
+    expect(seeds).toEqual([undefined, 1, 2, 3]);
+    expect(basketTotalOre).toBe(52_000);
+  });
+
+  it("prefers plans that meet the nutrition targets", () => {
+    // Round results: invalid 250 kr, valid 280 kr, invalid 299 kr (closest, but misses a target).
+    const rounds = [
+      { total: 25_000, valid: false },
+      { total: 28_000, valid: true },
+      { total: 29_900, valid: false },
+    ];
+    let call = 0;
+    const { result, basketTotalOre } = planTowardsBudget(
+      () => ({ ...rounds[Math.min(call++, 2)], estimatedCostOre: 0 }) as unknown as MealPlanResult,
+      30_000,
+      (r) => (r as unknown as { total: number }).total,
+    );
+    expect(result.valid).toBe(true);
+    expect(basketTotalOre).toBe(28_000);
   });
 
   it("skips calibration without prices", () => {

@@ -105,10 +105,11 @@ export function WeekView({
       ))}
       {basketEstimateOre !== null ? (
         <p className="text-muted-foreground text-sm">
-          Forventet indkøb for ugen{householdSize > 1 ? ` (${householdSize} personer)` : ""}:{" "}
+          Forventet madudgift for ugen{householdSize > 1 ? ` (${householdSize} personer)` : ""}:{" "}
           <strong className="text-foreground">ca. {formatKr(basketEstimateOre)}</strong>
-          {budgetOre !== null ? ` af dit budget på ${formatKr(budgetOre)}` : ""}. Den præcise pris
-          beregnes i indkøbskurven.
+          {budgetOre !== null ? ` af dit budget på ${formatKr(budgetOre)}` : ""}. Holdbare varer som
+          ris, olie og krydderier tæller kun med for det, du bruger, så første indkøb kan være
+          højere. Den præcise pris beregnes i indkøbskurven.
         </p>
       ) : (
         <p className="text-muted-foreground text-sm">

@@ -177,7 +177,12 @@ export function basketCostModel(
     }
     return options;
   });
-  return { needsPerServing, stores: storeOptions, pantry: pantryMap };
+  const longLasting = new Set(
+    [...catalog.ingredients.values()]
+      .filter((i) => i.shelfStable)
+      .flatMap((i) => ["mass", "volume", "count"].map((d) => `${i.ingredientId}:${d}`)),
+  );
+  return { needsPerServing, stores: storeOptions, pantry: pantryMap, longLasting };
 }
 
 /** The consolidated ingredient list for this week's plan (no prices). */
@@ -244,9 +249,9 @@ export async function storesFor(tx: Tx, catalog: Catalog, postalCode: string | n
 }
 
 /**
- * Checkout total of the cheapest complete basket (any store) for a set of planned meals
- * (whole packages, pantry subtracted), or null when no store has prices for
- * everything. Used by the meal planner to aim the plan at the weekly budget.
+ * Weekly cost of the cheapest complete basket (any store) for a set of planned
+ * meals (pantry subtracted; see `weeklyCostOre`), or null when no store has
+ * prices for everything. Used by the meal planner to aim the plan at the weekly budget.
  */
 export function basketTotalFor(
   meals: { recipeId: string; householdServings: number }[],
@@ -264,7 +269,7 @@ export function basketTotalFor(
       allowSubstitutes: true,
     }),
   );
-  const totals = result.baskets.filter((b) => b.complete).map((b) => b.checkoutTotalOre);
+  const totals = result.baskets.filter((b) => b.complete).map((b) => b.weeklyCostOre);
   return totals.length > 0 ? Math.min(...totals) : null;
 }
 

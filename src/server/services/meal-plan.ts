@@ -235,14 +235,14 @@ export async function generatePlan(
       const stores = await storesFor(tx, catalog, profile.postalCode);
       const basket = basketCostModel(catalog, pantry, stores, profile.allergens, now);
       ({ result, basketTotalOre: basketEstimateOre } = planTowardsBudget(
-        (budgetTargetOre) =>
+        (budgetTargetOre, runSeed = seed) =>
           generateMealPlan({
             recipes,
             constraints: { ...constraints, budgetTargetOre },
             targets,
             tolerances,
             locked,
-            seed,
+            seed: runSeed,
             basket,
           }),
         profile.weeklyBudgetOre,
@@ -258,7 +258,7 @@ export async function generatePlan(
       ));
       if (basketEstimateOre !== null && basketEstimateOre > profile.weeklyBudgetOre) {
         budgetWarnings.push(
-          `Den billigste madplan, der holder dine mål, koster ca. ${formatKr(basketEstimateOre)} i indkøb. Det er over dit ugebudget på ${formatKr(profile.weeklyBudgetOre)}.`,
+          `Den billigste madplan, der holder dine mål, koster ca. ${formatKr(basketEstimateOre)} om ugen. Det er over dit ugebudget på ${formatKr(profile.weeklyBudgetOre)}.`,
         );
       }
     } else {
@@ -302,7 +302,7 @@ export async function generatePlan(
     }
     const [plan] = await tx`
       insert into public.meal_plans (user_id, week_start, seed, algorithm_version_id, targets, validation)
-      values (${user.id}, ${weekStart}, ${seed}, ${algorithmVersionId}, ${tx.json(targets as never)}, ${tx.json(validation as never)})
+      values (${user.id}, ${weekStart}, ${result.seed}, ${algorithmVersionId}, ${tx.json(targets as never)}, ${tx.json(validation as never)})
       returning id`;
     if (meals.length > 0) {
       await tx`

@@ -20,9 +20,9 @@
  */
 
 import type { NutrientTotals } from "@/features/nutrition/domain/recipe-nutrition";
-import { basketCost, weekNeeds, type BasketCostModel } from "./basket-cost";
+import { needsDelta, WeekBasket, weekNeeds, type BasketCostModel } from "./basket-cost";
 
-export const MEAL_PLANNER_ALGORITHM = { key: "meal-planner", version: "1.3.0" } as const;
+export const MEAL_PLANNER_ALGORITHM = { key: "meal-planner", version: "1.4.0" } as const;
 
 export const CUISINES = ["fitness", "thai", "asiatisk", "dansk", "italiensk", "mexicansk"] as const;
 export type Cuisine = (typeof CUISINES)[number];
@@ -158,6 +158,8 @@ export interface MealPlanResult {
   estimatedCostOre: number | null;
   /** Number of meals where the recipe cost is unknown. */
   unknownCostMeals: number;
+  /** The budget search's target and the cost it reached (when a budget was set). */
+  budgetFit?: { targetOre: number; costOre: number };
   warnings: string[];
 }
 
@@ -327,6 +329,8 @@ interface ScoreContext {
   favoriteCuisines: Map<string, number>;
 }
 
+const COST_CAP = 4;
+
 function scoreCandidate(r: PlannerRecipe, c: PlannerConstraints, ctx: ScoreContext): number {
   let score = 0;
   // Protein density relative to the slot's protein expectation.
@@ -349,13 +353,18 @@ function scoreCandidate(r: PlannerRecipe, c: PlannerConstraints, ctx: ScoreConte
   const disliked = r.ingredientIds.filter((i) => c.dislikedIngredientIds.includes(i)).length;
   score -= 2 * disliked;
   if (c.maxCookingMinutes && r.totalTimeMinutes > c.maxCookingMinutes) score -= 1.5;
-  if (c.weeklyBudgetOre) {
-    const perMealBudget = c.weeklyBudgetOre / (7 * c.mealsPerDay * Math.max(1, c.householdSize));
-    // Capped; an unknown price counts as the most expensive, never as a free meal.
-    score -=
+  const budget = c.weeklyBudgetOre;
+  if (budget) {
+    // What this meal costs the household at the slot's size, against its share of the budget.
+    // Ranks by price per kcal, so tight budgets start from cheap meals. Capped; an unknown
+    // price counts as the most expensive, never as a free meal.
+    const perMealBudget = budget / (7 * c.mealsPerDay);
+    const household = Math.max(1, c.householdSize);
+    const ratio =
       r.estimatedCostPerServingOre === null
-        ? 2
-        : Math.min(2, 0.8 * Math.max(0, r.estimatedCostPerServingOre / perMealBudget - 1));
+        ? Infinity
+        : (r.estimatedCostPerServingOre * (servings + household - 1)) / perMealBudget;
+    score -= Math.min(COST_CAP, 1.5 * ratio);
   }
   score -= 0.5 * (1 - r.nutritionCompleteness);
   // Seeded tie-breaker in [0, 0.3).
@@ -501,8 +510,9 @@ export function generateMealPlan(input: PlanInput): MealPlanResult {
   }
 
   const budgetTarget = c.budgetTargetOre ?? c.weeklyBudgetOre;
+  let budgetFit: MealPlanResult["budgetFit"];
   if (budgetTarget && budgetTarget > 0) {
-    fitBudget(days, dayContexts, budgetTarget, {
+    budgetFit = fitBudget(days, dayContexts, budgetTarget, {
       recipeMap,
       targets: input.targets,
       tolerances: tol,
@@ -536,6 +546,7 @@ export function generateMealPlan(input: PlanInput): MealPlanResult {
     estimatedCostOre:
       unknown === days.reduce((a, d) => a + d.meals.length, 0) ? null : Math.round(cost),
     unknownCostMeals: unknown,
+    budgetFit,
     warnings,
   };
 }
@@ -565,22 +576,58 @@ function budgetGap(cost: number, target: number): number {
 }
 
 /**
- * The week's cost: the whole-package basket when a basket model is given,
- * otherwise the sum of per-serving recipe estimates.
+ * The week's cost: the weekly basket cost when a basket model is given,
+ * otherwise the sum of per-serving recipe estimates. Changes to one day are
+ * evaluated incrementally.
  */
-function weekCost(
-  weekMeals: PlannedMeal[][],
-  b: BudgetContext,
-): { cost: number; complete: boolean } {
-  const all = weekMeals.flat();
-  if (b.basket) {
-    const basket = basketCost(weekNeeds(all, b.basket), b.basket);
-    if (basket) return { cost: basket.totalOre, complete: basket.complete };
+class WeekCost {
+  private basket: WeekBasket | null = null;
+  constructor(
+    private days: PlannedDay[],
+    private b: BudgetContext,
+  ) {
+    if (b.basket) {
+      const basket = new WeekBasket(
+        b.basket,
+        weekNeeds(
+          days.flatMap((d) => d.meals),
+          b.basket,
+        ),
+      );
+      if (basket.current()) this.basket = basket;
+    }
   }
-  let cost = 0;
-  for (const m of all)
-    cost += (b.recipeMap.get(m.recipeId)?.estimatedCostPerServingOre ?? 0) * m.householdServings;
-  return { cost, complete: true };
+
+  private estimate(meals: PlannedMeal[]) {
+    let cost = 0;
+    for (const m of meals)
+      cost +=
+        (this.b.recipeMap.get(m.recipeId)?.estimatedCostPerServingOre ?? 0) * m.householdServings;
+    return cost;
+  }
+
+  current(): { cost: number; complete: boolean } {
+    if (this.basket) {
+      const c = this.basket.current()!;
+      return { cost: c.totalOre, complete: c.complete };
+    }
+    return { cost: this.estimate(this.days.flatMap((d) => d.meals)), complete: true };
+  }
+
+  /** Cost if day `di` had `meals` instead. */
+  evaluate(di: number, meals: PlannedMeal[]): { cost: number; complete: boolean } {
+    if (this.basket) {
+      const c = this.basket.evaluate(needsDelta(this.days[di].meals, meals, this.b.basket!))!;
+      return { cost: c.totalOre, complete: c.complete };
+    }
+    const all = this.days.flatMap((d, i) => (i === di ? meals : d.meals));
+    return { cost: this.estimate(all), complete: true };
+  }
+
+  /** Call before replacing day `di`'s meals. */
+  commit(di: number, meals: PlannedMeal[]) {
+    this.basket?.apply(needsDelta(this.days[di].meals, meals, this.b.basket!));
+  }
 }
 
 interface BudgetMove {
@@ -589,35 +636,46 @@ interface BudgetMove {
   cost: number;
   complete: boolean;
   gap: number;
-  from: string;
-  to: PlannerRecipe;
+  swap?: { from: string; to: PlannerRecipe };
 }
 
 /**
- * Greedy week-level swap search towards the budget target. Each step takes the
- * single meal swap that closes the gap the most, provided the day keeps the
- * same or fewer nutrition violations, its deviation from the targets grows by
- * at most a small margin, and the basket does not lose a store that can supply
- * everything. Recipes without a known price are never swapped in, and the
- * weekly variety limit (two uses per recipe) still applies.
+ * Greedy week-level search towards the budget target. Each step takes the move
+ * that closes the gap the most: swapping one meal for another candidate
+ * (portions rescaled), or moving a quarter serving from one meal of a day to
+ * another (more of the cheap dish, less of the dear one). A move is only taken
+ * if the day keeps the same or fewer nutrition violations and the basket does
+ * not lose a store that can supply everything. Recipes without a known price
+ * are never swapped in, and the weekly variety limit (two uses per recipe)
+ * still applies.
  */
-function fitBudget(days: PlannedDay[], contexts: DayContext[], target: number, b: BudgetContext) {
+function fitBudget(
+  days: PlannedDay[],
+  contexts: DayContext[],
+  target: number,
+  b: BudgetContext,
+): { targetOre: number; costOre: number } {
   const withHousehold = (meals: PlannedMeal[]) =>
     meals.map((m) => ({ ...m, householdServings: m.servings + (b.household - 1) }));
-  // Baselines from before the search, so repeated swaps cannot drift a day away from its targets.
-  const baseDev = days.map((d) => dayDeviation(d.totals, b.targets));
   const baseViolations = days.map(
     (d) => d.violations.filter((v) => v.code !== "no_candidates").length,
   );
-  let { cost, complete } = weekCost(
-    days.map((d) => d.meals),
-    b,
-  );
+  const week = new WeekCost(days, b);
+  let { cost, complete } = week.current();
 
-  for (let step = 0; step < 80; step++) {
+  for (let step = 0; step < 120; step++) {
     const gap = budgetGap(cost, target);
     if (gap <= target * 0.01) break;
     let best: BudgetMove | null = null;
+    const consider = (di: number, meals: PlannedMeal[], swap?: BudgetMove["swap"]) => {
+      const next = week.evaluate(di, meals);
+      if (complete && !next.complete) return;
+      const newGap = budgetGap(next.cost, target);
+      if (newGap >= gap - 100 || (best && newGap >= best.gap)) return;
+      const totals = dayTotals(meals, b.recipeMap);
+      if (validateDay(totals, b.targets, b.tolerances).length > baseViolations[di]) return;
+      best = { day: di, meals, cost: next.cost, complete: next.complete, gap: newGap, swap };
+    };
     days.forEach((d, di) => {
       const ctx = contexts[di];
       d.meals.forEach((m, mi) => {
@@ -626,36 +684,40 @@ function fitBudget(days: PlannedDay[], contexts: DayContext[], target: number, b
           if (cand.id === m.recipeId || cand.estimatedCostPerServingOre === null) continue;
           if ((b.usedCounts.get(cand.id) ?? 0) >= 2) continue;
           const trial = d.meals.map((x, xi) => (xi === mi ? { ...x, recipeId: cand.id } : x));
-          const scaled = withHousehold(
-            scalePortions(trial, b.recipeMap, b.targets, ctx.mealShares),
+          consider(
+            di,
+            withHousehold(scalePortions(trial, b.recipeMap, b.targets, ctx.mealShares)),
+            {
+              from: m.recipeId,
+              to: cand,
+            },
           );
-          const next = weekCost(
-            days.map((x, xi) => (xi === di ? scaled : x.meals)),
-            b,
-          );
-          if (complete && !next.complete) continue;
-          const newGap = budgetGap(next.cost, target);
-          if (newGap >= gap - 100 || (best && newGap >= best.gap)) continue;
-          const totals = dayTotals(scaled, b.recipeMap);
-          if (validateDay(totals, b.targets, b.tolerances).length > baseViolations[di]) continue;
-          if (dayDeviation(totals, b.targets) > baseDev[di] + 0.02) continue;
-          best = {
-            day: di,
-            meals: scaled,
-            cost: next.cost,
-            complete: next.complete,
-            gap: newGap,
-            from: m.recipeId,
-            to: cand,
-          };
+        }
+        // Portion moves: a quarter serving more here, a quarter less on another meal (or none).
+        for (let other = -1; other < d.meals.length; other++) {
+          if (other === mi || (other >= 0 && d.meals[other].locked)) continue;
+          for (const dir of [1, -1]) {
+            const up = quantizeServings(m.servings + dir * SERVING_STEP);
+            if (up === m.servings) continue;
+            const trial = d.meals.map((x, xi) => {
+              if (xi === mi) return { ...x, servings: up };
+              if (xi === other)
+                return { ...x, servings: quantizeServings(x.servings - dir * SERVING_STEP) };
+              return x;
+            });
+            consider(di, withHousehold(trial));
+          }
         }
       });
     });
     if (!best) break;
     const move = best as BudgetMove;
     const d = days[move.day];
-    b.markUsed(b.recipeMap.get(move.from)!, -1);
-    b.markUsed(move.to, 1);
+    week.commit(move.day, move.meals);
+    if (move.swap) {
+      b.markUsed(b.recipeMap.get(move.swap.from)!, -1);
+      b.markUsed(move.swap.to, 1);
+    }
     d.meals = move.meals;
     d.totals = dayTotals(move.meals, b.recipeMap);
     d.violations = [
@@ -665,6 +727,7 @@ function fitBudget(days: PlannedDay[], contexts: DayContext[], target: number, b
     cost = move.cost;
     complete = move.complete;
   }
+  return { targetOre: target, costOre: Math.round(cost) };
 }
 
 export function describeViolation(v: Violation): string {

@@ -132,6 +132,10 @@ export default async function BasketPage() {
                         </div>
                       </div>
                       <CardDescription>
+                        {/* Baskets saved before optimizer 1.1 have no weekly cost. */}
+                        {b.weeklyCostOre !== undefined
+                          ? `Ugentlig madudgift ${formatKr(b.weeklyCostOre)} · `
+                          : ""}
                         Ved kassen {formatKr(b.checkoutTotalOre)} · bruges i planen{" "}
                         {formatKr(b.consumedValueOre)} · rester {formatKr(b.leftoverValueOre)}
                         {b.likelyWasteValueOre > 0

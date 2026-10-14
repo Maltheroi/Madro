@@ -81,19 +81,21 @@ Calculations use unrounded values. Rounding happens only when showing or storing
 
 ## Meal planner
 
-`src/features/meal-planning/domain/planner.ts`, algorithm `meal-planner` v1.3.
+`src/features/meal-planning/domain/planner.ts`, algorithm `meal-planner` v1.4.
 
 1. **Hard filters** (`isRecipeAllowed`): allergens, diet, excluded ingredients, meal type. Never relaxed. The server re-checks them when a user swaps a meal.
 2. **Slots**: 2–5 meals a day with energy shares (breakfast 25 %, lunch 30 %, dinner 35 %, snack 10 %, rescaled to the chosen slots).
-3. **Choice**: each candidate gets a score: closeness to the slot's energy, protein density, ingredient reuse (less waste), variety (at most two uses a week), favourites (+1), recipes sharing a cuisine with the user's favourites (small boost), disliked ingredients, cooking time above the user's limit, cost above the per-meal budget (unknown prices count as expensive), and nutrition data completeness. A seeded FNV-1a hash breaks ties, so the same seed gives the same plan.
+3. **Choice**: each candidate gets a score: closeness to the slot's energy, protein density, ingredient reuse (less waste), variety (at most two uses a week), favourites (+1), recipes sharing a cuisine with the user's favourites (small boost), disliked ingredients, cooking time above the user's limit, price per kcal against the per-meal budget (capped; unknown prices count as expensive), and nutrition data completeness. A seeded FNV-1a hash breaks ties, so the same seed gives the same plan.
 4. **Scaling**: servings quantised to 0.25 between 0.5 and 3. Each meal starts at its slot's energy share; then single 0.25 steps are taken while they reduce the day's deviation from all targets (energy, protein shortfall, carbohydrate, fat), so protein-dense meals grow first. Household portions = servings + household size − 1.
 5. **Validation**: each day is checked against the targets with tolerances (energy ±7 %, protein at most 10 % short, carbohydrate and fat ±25 %, editable on `/profil/mal`). A bounded swap search tries to fix failing days; days that still fail are stored with their violations and shown.
-6. **Budget**: with a weekly budget, a week-level swap search moves the week's cost as close to the budget as possible without going over (going over weighs three times as much as staying under). A swap is only taken if the day keeps the same or fewer violations and drifts at most slightly from its targets. The cost is the whole-package basket (`domain/basket-cost.ts`: amounts per ingredient, pantry subtracted, cheapest package option per store, cheapest store), not the per-serving recipe estimate, which is roughly half of what the basket costs. The server then runs the real basket optimizer on the result and adjusts the planner's target over a few rounds (`domain/budget.ts`) until the cheapest complete basket lands just under the budget. If no plan that meets the targets fits the budget, the cheapest one is used and the user is told what it costs.
+6. **Budget**: with a weekly budget, a week-level search moves the week's cost as close to the budget as possible without going over (going over weighs three times as much as staying under). Moves are meal swaps (portions rescaled) and quarter-serving shifts between a day's meals; a move is only taken if the day keeps the same or fewer violations. The cost is the **weekly food cost** (`domain/basket-cost.ts`): amounts per ingredient, pantry subtracted, perishables as whole packages, long-lasting goods (rice, oil, spices) for the share used, cheapest store. The server runs the real basket optimizer on the result and adjusts the planner's target over a few rounds (`domain/budget.ts`) until the cheapest complete basket's weekly cost lands just under the budget. If the budget is out of reach, the planner is restarted from fixed seeds in pure cost-minimisation mode and the cheapest valid plan is used, so the reported minimum is stable; the user is told what it costs.
 7. Locked meals survive regeneration. Plans are archived, not overwritten.
 
 ## Basket optimizer
 
-`src/features/basket-optimization/domain/optimizer.ts`, algorithm `basket-optimizer` v1. Single store per basket.
+`src/features/basket-optimization/domain/optimizer.ts`, algorithm `basket-optimizer` v1.1. Single store per basket.
+
+Each basket reports the checkout total and a weekly food cost (what the plan uses plus perishable leftovers likely to be thrown out; long-lasting leftovers stay for next week). The budget is compared with the weekly cost (v1.1).
 
 - **Consolidation** (`shopping-list/domain/consolidate.ts`): sum ingredient quantities across planned meals (scaled by household portions) in a common dimension (mass, volume or count), then subtract the pantry.
 - **Effective price** (`grocery-pricing/domain/prices.ts`): best status first (live, estimated, synthetic, stale), store-specific before chain-wide, newest first. A promotion is used only within its validity and only if cheaper.

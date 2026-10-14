@@ -228,8 +228,17 @@ describe("basket optimizer", () => {
   it("strict budget mode explains the shortfall", () => {
     const res = optimizeBasket({ ...baseInput(), mode: "strict_budget", budgetOre: 3500 });
     expect(res.recommended).toBeNull();
-    expect(res.budget).toMatchObject({ cheapestCompleteStoreId: "s-b", shortfallOre: 500 });
+    // Weekly cost at B: oats used 1440 (the rest keeps) + milk 1650 + milk likely wasted 550 = 3640.
+    expect(res.budget).toMatchObject({ cheapestCompleteStoreId: "s-b", shortfallOre: 140 });
     expect(res.budget!.suggestions.length).toBeGreaterThan(0);
+  });
+
+  it("compares the budget with the weekly cost, not the checkout", () => {
+    const res = optimizeBasket({ ...baseInput(), mode: "strict_budget", budgetOre: 3700 });
+    expect(res.recommended!.store.id).toBe("s-b");
+    expect(res.recommended!.checkoutTotalOre).toBe(4000);
+    expect(res.recommended!.weeklyCostOre).toBe(3640);
+    expect(res.recommended!.withinBudget).toBe(true);
   });
 
   it("strict budget mode returns a basket within budget when possible", () => {

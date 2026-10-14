@@ -27,7 +27,7 @@ import {
   type PriceType,
 } from "@/features/grocery-pricing/domain/prices";
 
-export const BASKET_OPTIMIZER_ALGORITHM = { key: "basket-optimizer", version: "1.0.0" } as const;
+export const BASKET_OPTIMIZER_ALGORITHM = { key: "basket-optimizer", version: "1.1.0" } as const;
 
 export type MatchQuality = "exact" | "equivalent" | "substitute";
 
@@ -122,6 +122,12 @@ export interface StoreBasket {
   consumedValueOre: number;
   leftoverValueOre: number;
   likelyWasteValueOre: number;
+  /**
+   * What the week's food costs: what the plan uses plus perishable leftovers
+   * that will likely be thrown out. Leftovers of long-lasting goods stay in the
+   * cupboard for next week, so the checkout can be higher. Compared with the budget.
+   */
+  weeklyCostOre: number;
   /** All required items have a priced product. */
   complete: boolean;
   coverage: number;
@@ -283,7 +289,9 @@ function basketForStore(input: OptimizeInput, store: Store): StoreBasket {
   const checkout = lines.reduce((a, l) => a + l.lineCostOre, 0);
   const waste = lines.reduce((a, l) => a + l.likelyWasteValueOre, 0);
   const complete = requiredMissing === 0;
-  const withinBudget = input.budgetOre === null ? null : checkout <= input.budgetOre;
+  const consumed = lines.reduce((a, l) => a + l.consumedValueOre, 0);
+  const weeklyCost = Math.round(consumed + waste);
+  const withinBudget = input.budgetOre === null ? null : weeklyCost <= input.budgetOre;
   // Incomplete baskets are ranked after complete ones; their score is informative only.
   const qualityPenalty = lines.reduce(
     (a, l) => a + l.lineCostOre * QUALITY_PENALTY[l.matchQuality],
@@ -296,7 +304,8 @@ function basketForStore(input: OptimizeInput, store: Store): StoreBasket {
     lines,
     unmatched,
     checkoutTotalOre: checkout,
-    consumedValueOre: lines.reduce((a, l) => a + l.consumedValueOre, 0),
+    consumedValueOre: consumed,
+    weeklyCostOre: weeklyCost,
     leftoverValueOre: lines.reduce((a, l) => a + l.leftoverValueOre, 0),
     likelyWasteValueOre: waste,
     complete,
@@ -326,12 +335,11 @@ export function optimizeBasket(input: OptimizeInput): OptimizeResult {
   let budget: BudgetShortfall | null = null;
 
   if (input.mode === "strict_budget" && input.budgetOre !== null) {
-    const feasible = complete.filter((b) => b.checkoutTotalOre <= input.budgetOre!);
-    recommended = feasible.sort((a, b) => a.checkoutTotalOre - b.checkoutTotalOre)[0] ?? null;
+    const feasible = complete.filter((b) => b.weeklyCostOre <= input.budgetOre!);
+    recommended = feasible.sort((a, b) => a.weeklyCostOre - b.weeklyCostOre)[0] ?? null;
     if (!recommended) {
-      const cheapest =
-        [...complete].sort((a, b) => a.checkoutTotalOre - b.checkoutTotalOre)[0] ?? null;
-      const shortfall = cheapest ? cheapest.checkoutTotalOre - input.budgetOre : 0;
+      const cheapest = [...complete].sort((a, b) => a.weeklyCostOre - b.weeklyCostOre)[0] ?? null;
+      const shortfall = cheapest ? cheapest.weeklyCostOre - input.budgetOre : 0;
       const suggestions: string[] = [];
       if (cheapest) {
         const optional = cheapest.lines

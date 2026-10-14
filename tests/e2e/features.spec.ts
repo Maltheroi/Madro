@@ -13,7 +13,7 @@ test.describe("feature screens", () => {
     await page.getByRole("button", { name: "Lav min madplan" }).click();
     await expect(page.getByText(/Uge fra/)).toBeVisible({ timeout: 20_000 });
     // The plan is aimed at the 900 kr weekly budget from onboarding.
-    await expect(page.getByText(/Forventet indkøb for ugen/)).toBeVisible();
+    await expect(page.getByText(/Forventet madudgift for ugen/)).toBeVisible();
 
     // --- Madregistrering
     await page.goto("/madregistrering");
